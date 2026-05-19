@@ -336,13 +336,8 @@ class SchedulingInputBuilder:
                 job_base = {
                     "job_id": jid,
                     "op": safe_int(row.get("_kf_producao")),
-                    "kp_fichaTecnica": safe_int(row.get("_kf_FichaTecnica")),
                     "_kf_macho": safe_int(row.get("_kf_macho")),
-                    "job_register_id": safe_int(row.get("caixa")),
                     "assigned_machine_id": machine_id,
-                    "has_lateness": safe_int(row.get("lateness")),
-                    "status_integration_id": row.get("status_integration_id"),
-                    "Status_Processed": row.get("Status_Processed", ""),
                 }
 
                 release_slot = int(
@@ -440,7 +435,9 @@ class SchedulingInputBuilder:
             )
             jobs_df.loc[mask, "config"] = info["config"]
         # gera combinações dois-a-dois por máquina, respeitando not_setup
-        setups: Dict[int, Dict[int, Dict[int, int]]] = defaultdict(lambda: defaultdict(dict))
+        setups: Dict[int, Dict[int, Dict[int, int]]] = defaultdict(
+            lambda: defaultdict(dict)
+        )
         for (c_kp, c_m_id), c_info in kp_macho_data.items():
             not_setup = set(c_info["not_setup"])
 
@@ -501,6 +498,14 @@ class SchedulingInputBuilder:
         setups = self.build_setups(
             machines, setup_df, setup_times_df, pd.DataFrame(jobs)
         )
+
+        _rename = {
+            "job_id": "id",
+            "op": "order_id",
+            "_kf_macho": "resource_id",
+            "deadline_slot": "due_date_slot",
+        }
+        jobs = [{_rename.get(k, k): v for k, v in job.items()} for job in jobs]
 
         count_time_slots = len(business_days) * self.cfg.slots_per_day
         return {
