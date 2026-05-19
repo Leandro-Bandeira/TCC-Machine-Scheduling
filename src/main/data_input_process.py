@@ -172,13 +172,8 @@ def safe_int(value):
         return 0
 
 
-
-
 class SchedulingInputBuilder:
-    """
-    Classe unificada para gerar instâncias de input dos modelos GAP e Time-Index.
-    Usa o parâmetro `mode` para alternar entre comportamentos específicos.
-    """
+    """Gera instâncias de input para o modelo Time-Index."""
 
     def __init__(self, cfg: RunConfig):
         self.cfg = cfg
@@ -194,7 +189,6 @@ class SchedulingInputBuilder:
         caps_df: pd.DataFrame,
         shifts_df: pd.DataFrame,
         business_days: pd.DatetimeIndex,
-        mode: str = "timeindex",
     ) -> List[Dict]:
         time_step = self.cfg.time_step
         slots_per_day = self.cfg.slots_per_day
@@ -218,7 +212,6 @@ class SchedulingInputBuilder:
                 if mi_rows.empty:
                     continue
                 job_capacity = int(mi_rows.iloc[0]["maximo_caixas"])
-
                 # turnos válidos (idêntico ao original)
                 current_shifts_df = machines_df.query("processo == @process")
                 if current_shifts_df.shape[0] > 1:
@@ -234,11 +227,16 @@ class SchedulingInputBuilder:
                     day_name = WORK_DAYS[day.weekday()]
                     start_slot_day = count_day * slots_per_day
                     day_shifts = shifts_df.loc[shifts_df["dia"] == day_name]
-                    machine_shifts = day_shifts[day_shifts["turno"].isin(current_shifts)]
+                    machine_shifts = day_shifts[
+                        day_shifts["turno"].isin(current_shifts)
+                    ]
 
                     for _, row in machine_shifts.iterrows():
                         s1, e1 = get_interval_slots(
-                            row["inicio"], row["intervalo_inicio"], time_step, slots_per_day
+                            row["inicio"],
+                            row["intervalo_inicio"],
+                            time_step,
+                            slots_per_day,
                         )
                         s2, e2 = get_interval_slots(
                             row["intervalo_fim"], row["fim"], time_step, slots_per_day
@@ -254,72 +252,38 @@ class SchedulingInputBuilder:
 
                 start_slots_sorted = sorted(slots_valid_machine)
 
-                # capacidade min/max por dia (em minutos e em slots), limitada pelos turnos do dia
                 caps_rows = caps_df.query("recurso == @recurso_type")
                 if caps_rows.empty:
                     continue
-                process_max_minutes = float(caps_rows["max_dia"].iloc[0])
-                process_min_minutes = float(caps_rows["min_dia"].iloc[0])
-                process_max_slots = int(process_max_minutes // time_step)
-                process_min_slots = int(process_min_minutes // time_step)
+                process_max_slots = int(
+                    float(caps_rows["max_dia"].iloc[0]) // time_step
+                )
 
-                if mode == "gap":
-                    # ===== GAP: work_time_per_day em minutos, respeitando disponibilidade do dia =====
-                    work_time_per_day: Dict[str, Dict[str, float]] = {}
-                    for count_day, day in enumerate(business_days):
-                        start_slot_day = count_day * slots_per_day
-                        end_slot_day = start_slot_day + slots_per_day
-                        todays_slots = {
-                            s for s in start_slots_sorted if start_slot_day <= s < end_slot_day
-                        }
-                        avail_today_min = len(todays_slots) * time_step
+                last_slot_day: List[int] = []
+                start_slots_filtered: List[int] = []
+                for count_day, _ in enumerate(business_days):
+                    start_slot_day = count_day * slots_per_day
+                    end_slot_day = start_slot_day + slots_per_day
+                    todays_slots = [
+                        s
+                        for s in start_slots_sorted
+                        if start_slot_day <= s < end_slot_day
+                    ]
+                    last_valid = todays_slots[-1] if todays_slots else start_slot_day
+                    cap = min(last_valid, start_slot_day + process_max_slots)
+                    last_slot_day.append(cap)
+                    start_slots_filtered.extend(s for s in todays_slots if s <= cap)
 
-                        max_work_time = min(process_max_minutes, avail_today_min)
-                        min_work_time = min(process_min_minutes, avail_today_min)
-
-                        work_time_per_day[str(count_day)] = {
-                            "min": float(min_work_time),
-                            "max": float(max_work_time),
-                        }
-
-                    machines_information.append(
-                        {
-                            "machine_id": index_machine,
-                            "machine_name": machine_name,
-                            "job_capacity": job_capacity,
-                            "work_time_per_day": work_time_per_day,
-                        }
-                    )
-
-                else:
-                    # ===== TIME-INDEX: time_capacity por faixas de slots, respeitando disponibilidade =====
-                    slots_ranges: List[Tuple[int, int]] = []
-                    slots_capacity: List[Tuple[int, int]] = []
-                    for count_day, day in enumerate(business_days):
-                        start_slot_day = count_day * slots_per_day
-                        end_slot_day = start_slot_day + slots_per_day
-                        todays_slots = {
-                            s for s in start_slots_sorted if start_slot_day <= s < end_slot_day
-                        }
-                        avail_today_slots = len(todays_slots)
-
-                        min_cap_today = min(process_min_slots, avail_today_slots)
-                        max_cap_today = min(process_max_slots, avail_today_slots)
-
-                        slots_ranges.append((start_slot_day, end_slot_day))
-                        slots_capacity.append((min_cap_today, max_cap_today))
-
-                    time_capacity = {"slots": slots_ranges, "slots_capacity": slots_capacity}
-
-                    machines_information.append(
-                        {
-                            "machine_id": index_machine,
-                            "machine_name": machine_name,
-                            "job_capacity": job_capacity,
-                            "time_capacity": time_capacity,
-                            "start_slots": start_slots_sorted,  # <<< correto
-                        }
-                    )
+                machines_information.append(
+                    {
+                        "machine_id": index_machine,
+                        "machine_name": machine_name,
+                        "job_capacity": job_capacity,
+                        "oee": float(str(caps_rows["oee"].iloc[0]).rstrip("%")) / 100,
+                        "last_slot_day": last_slot_day,
+                        "start_slots": start_slots_filtered,
+                    }
+                )
 
                 index_machine += 1
 
@@ -333,13 +297,8 @@ class SchedulingInputBuilder:
         demand_df: pd.DataFrame,
         machines_information: List[Dict],
         business_days: pd.DatetimeIndex,
-        mode: str = "timeindex",
     ) -> List[Dict]:
-        """
-        Cria lista de jobs.
-        - mode="gap": usa índices de dias (release_date_index, deadline_date_index)
-        - mode="timeindex": usa slots (release_date_slot, deadline_slot, processing_slots)
-        """
+        """Cria lista de jobs com slots (release_date_slot, deadline_slot, processing_slots)."""
         jobs_info = []
         time_step = self.cfg.time_step
         day_start = self.cfg.day_start
@@ -362,22 +321,17 @@ class SchedulingInputBuilder:
                 if pd.isna(qm) or pd.isna(tc):
                     continue
 
-                # Tempo total de processamento
-                processing_minutes = float(qm) * float(tc)
-                if machine_name == "pepset_carrossel":
-                    processing_minutes *= m["job_capacity"]
-                    enhance_processing_time = True
-                else:
-                     enhance_processing_time = False
-
-
+                oee = m["oee"]
+                processing_minutes = float(qm) * float(tc) / oee
 
                 # --- GARANTA ID VÁLIDO ---
                 jid = row.get("job_id")
                 if pd.isna(jid):
                     # se não houver job_id, não crie o job (evita virar 0)
                     continue
-                jid = int(jid)  # NÃO usar safe_int aqui, 0 pode ser válido (primeiro job)
+                jid = int(
+                    jid
+                )  # NÃO usar safe_int aqui, 0 pode ser válido (primeiro job)
 
                 job_base = {
                     "job_id": jid,
@@ -389,42 +343,34 @@ class SchedulingInputBuilder:
                     "has_lateness": safe_int(row.get("lateness")),
                     "status_integration_id": row.get("status_integration_id"),
                     "Status_Processed": row.get("Status_Processed", ""),
-                    "enhance_processing_time": enhance_processing_time,
                 }
 
-                if mode == "gap":
-                    release_index = (abs(business_days - row["not_before_date"])).argmin()
-                    deadline_index = (abs(business_days - row["deadline"])).argmin()
+                release_slot = int(
+                    max(
+                        0,
+                        (row["not_before_date"] - day_start).total_seconds()
+                        / 60
+                        // time_step,
+                    )
+                )
+                deadline_slot = int(
+                    max(
+                        0,
+                        (row["deadline"] - day_start).total_seconds() / 60 // time_step,
+                    )
+                )
+                processing_slots = math.ceil(processing_minutes / time_step)
 
-                    # se deadline cair dentro da semana, soma +1 (representa "até o fim do dia")
-                    if row["deadline"].normalize() <= business_days[-1]:
-                        deadline_index = min(deadline_index + 1, len(business_days))
-
-
-                    job = {
-                        **job_base,
-                        "processing_minutes": processing_minutes,
-                        "release_date_index": int(release_index),
-                        "deadline_date_index": int(deadline_index),
-                        
-                    }
-
-                else:  # mode == "timeindex"
-                    release_slot = int(max(0, (row["not_before_date"] - day_start).total_seconds() / 60 // time_step))
-                    deadline_slot = int(max(0, (row["deadline"] - day_start).total_seconds() / 60 // time_step))
-                    processing_slots = math.ceil(processing_minutes / time_step)
-
-                    job = {
-                        **job_base,
-                        "processing_slots": processing_slots,
-                        "release_date_slot": release_slot,
-                        "deadline_slot": deadline_slot,
-                    }
+                job = {
+                    **job_base,
+                    "processing_slots": processing_slots,
+                    "release_date_slot": release_slot,
+                    "deadline_slot": deadline_slot,
+                }
 
                 jobs_info.append(job)
 
         return jobs_info
-
 
     # -------------------------------------------------------------------------
     # 3. SETUPS (comum)
@@ -435,10 +381,8 @@ class SchedulingInputBuilder:
         setup_df: pd.DataFrame,
         setup_df_time: pd.DataFrame,
         jobs_df: pd.DataFrame,
-    ) -> List[Dict]:
-        """
-        Retorna lista de setups entre jobs (from_job_id -> to_job_id) com tempos em slots.
-        """
+    ) -> Dict:
+        """Retorna setups[machine_id][from_job_id][to_job_id] = setup_time (slots)."""
         time_step = self.cfg.time_step
 
         # Mapa rápido: recurso presente no nome da máquina -> machine_id
@@ -455,7 +399,9 @@ class SchedulingInputBuilder:
             if not machine_ids:
                 continue
 
-            macho_info = re.sub(r"[A-Za-z]+", "", str(row["_kp_macho"]).replace(" ", ""))
+            macho_info = re.sub(
+                r"[A-Za-z]+", "", str(row["_kp_macho"]).replace(" ", "")
+            )
             if "/" in macho_info:
                 parts = macho_info.split("/")
                 for m_id in machine_ids:
@@ -481,28 +427,30 @@ class SchedulingInputBuilder:
                 continue
             for m_id in machine_ids:
                 key = (row["de_config"], row["para_config"], m_id)
-                setup_time_data[key] = math.ceil(float(row["setup_time_min"]) / time_step)
+                setup_time_data[key] = math.ceil(
+                    float(row["setup_time_min"]) / time_step
+                )
 
         # adiciona coluna 'config' em jobs (por (_kf_macho, machine_id))
         jobs_df = jobs_df.copy()
         jobs_df["config"] = None
         for (kp, m_id), info in kp_macho_data.items():
-            mask = jobs_df["_kf_macho"].eq(int(kp)) & jobs_df["assigned_machine_id"].eq(m_id)
+            mask = jobs_df["_kf_macho"].eq(int(kp)) & jobs_df["assigned_machine_id"].eq(
+                m_id
+            )
             jobs_df.loc[mask, "config"] = info["config"]
         # gera combinações dois-a-dois por máquina, respeitando not_setup
-        setups_information: List[Dict] = []
+        setups: Dict[int, Dict[int, Dict[int, int]]] = defaultdict(lambda: defaultdict(dict))
         for (c_kp, c_m_id), c_info in kp_macho_data.items():
             not_setup = set(c_info["not_setup"])
 
-            mask_src = (
-                jobs_df["_kf_macho"].eq(int(c_kp))
-                & jobs_df["assigned_machine_id"].eq(c_m_id)
-            )
+            mask_src = jobs_df["_kf_macho"].eq(int(c_kp)) & jobs_df[
+                "assigned_machine_id"
+            ].eq(c_m_id)
             src_jobs = jobs_df.loc[mask_src]
             if src_jobs.empty:
                 continue
 
-            # todos os outros KP na mesma máquina, exceto os em not_setup
             kps_same_machine = {
                 kp
                 for (kp, mid), _ in kp_macho_data.items()
@@ -512,169 +460,26 @@ class SchedulingInputBuilder:
             for _, src in src_jobs.iterrows():
                 from_job_id = int(src["job_id"])
                 from_config = src["config"]
-                from_macho = int(src["_kf_macho"])
 
                 for kp in kps_same_machine:
-                    mask_dst = (
-                        jobs_df["_kf_macho"].eq(int(kp))
-                        & jobs_df["assigned_machine_id"].eq(c_m_id)
-                    )
+                    mask_dst = jobs_df["_kf_macho"].eq(int(kp)) & jobs_df[
+                        "assigned_machine_id"
+                    ].eq(c_m_id)
                     dst_jobs = jobs_df.loc[mask_dst]
                     if dst_jobs.empty:
                         continue
 
                     for _, dst in dst_jobs.iterrows():
                         to_job_id = int(dst["job_id"])
-                        to_config = dst["config"]
-                        to_macho = int(dst["_kf_macho"])
-
-                        #  evita arco para o mesmo job
                         if to_job_id == from_job_id:
                             continue
 
                         setup_slots = setup_time_data.get(
-                            (from_config, to_config, c_m_id), 0
+                            (from_config, dst["config"], c_m_id), 0
                         )
+                        setups[c_m_id][from_job_id][to_job_id] = int(setup_slots)
 
-                        setups_information.append(
-                            {
-                                "from_macho": from_macho,
-                                "from_job_id": from_job_id,
-                                "to_job_id": to_job_id,
-                                "to_macho": to_macho,
-                                "setup_time": int(setup_slots),
-                                "machine_id": int(c_m_id),
-                            }
-                        )
-
-        return setups_information
-    def _build_setups_and_pairs_exact(
-        self,
-        machines_information: List[Dict],
-        setup_df: pd.DataFrame,
-        setup_times_df: pd.DataFrame,
-        jobs_information: List[Dict],
-    ) -> Tuple[pd.DataFrame, List[Dict], List[Dict], List[Dict]]:
-        """
-        Constrói dados de setups (setup_data) e pares sem setup (pairs_not_setup),
-        garantindo correspondência correta entre recurso e machine_id.
-        Idêntico à lógica original do GapInput.
-        """
-        from collections import defaultdict
-
-        jobs_information_df = pd.DataFrame(jobs_information).copy()
-        if "config" not in jobs_information_df.columns:
-            jobs_information_df["config"] = None
-
-        # ===========================================================
-        # Mapeamento robusto: recurso -> machine_id
-        # ===========================================================
-        recurso_to_machine_ids: Dict[str, List[int]] = defaultdict(list)
-        for m in machines_information:
-            # extrai apenas o trecho depois do "_" (ex: "Cold Box Soprado" -> "soprado")
-            recurso_part = m["machine_name"].split("_", 1)[-1].lower()
-            recurso_to_machine_ids[normalize_string(recurso_part)].append(m["machine_id"])
-
-        # ===========================================================
-        # (kp_macho, machine_id) -> {not_setup: [...], config: str}
-        # ===========================================================
-        kp_macho_data: Dict[Tuple[int, int], Dict] = {}
-
-        for _, row in setup_df.iterrows():
-            recurso = normalize_string(str(row.get("recurso", "")))
-            macho_info = re.sub(r"[A-Za-z]+", "", str(row.get("_kp_macho", "")).replace(" ", ""))
-            config = str(row.get("configuracao", ""))
-
-            machine_ids = recurso_to_machine_ids.get(recurso, [])
-            if not machine_ids:
-                continue
-
-            if "/" in macho_info:
-                parts = [int(x) for x in macho_info.split("/") if x.strip()]
-                for m_id in machine_ids:
-                    for i, left in enumerate(parts):
-                        not_setup = [p for j, p in enumerate(parts) if j != i]
-                        kp_macho_data[(left, m_id)] = {"not_setup": not_setup, "config": config}
-            else:
-                for m_id in machine_ids:
-                    if macho_info.strip() == "":
-                        continue
-                    kp_macho_data[(int(macho_info), m_id)] = {"not_setup": [], "config": config}
-
-        # ===========================================================
-        # Tempos (from_config, to_config, machine_id) -> minutos
-        # ===========================================================
-        setup_time_data: Dict[Tuple[str, str, int], int] = {}
-        setup_time_rows: List[Dict] = []
-        for _, row in setup_times_df.iterrows():
-            recurso = normalize_string(str(row.get("recurso", "")))
-            machine_ids = recurso_to_machine_ids.get(recurso, [])
-            if not machine_ids:
-                continue
-            for m_id in machine_ids:
-                key = (row["de_config"], row["para_config"], int(m_id))
-                setup_time_data[key] = int(row["setup_time_min"])
-                setup_time_rows.append(
-                    {
-                        "from_config": row["de_config"],
-                        "to_config": row["para_config"],
-                        "machine_id": int(m_id),
-                        "setup_time": int(row["setup_time_min"]),
-                    }
-                )
-
-        # ===========================================================
-        # Atribui config e soma setup(A->A) nos jobs (modo GAP)
-        # ===========================================================
-        for (kp, m_id), info in kp_macho_data.items():
-            mask = jobs_information_df["_kf_macho"].eq(int(kp)) & jobs_information_df["assigned_machine_id"].eq(int(m_id))
-            jobs_information_df.loc[mask, "config"] = info["config"]
-            self_setup = setup_time_data.get((info["config"], info["config"], int(m_id)), 0)
-            if "processing_minutes" in jobs_information_df.columns and self_setup:
-                jobs_information_df.loc[mask, "processing_minutes"] += int(self_setup)
-
-        # ===========================================================
-        # pairs_not_setup — gerado apenas entre machos/máquinas com setup permitido
-        # ===========================================================
-        pairs_no_setup: List[Dict] = []
-        triplice_no_setup: List[Dict] = []
-
-        for _, row in jobs_information_df.iterrows():
-            c_kp = int(row["_kf_macho"])
-            c_machine_id = int(row["assigned_machine_id"])
-            c_id = int(row["job_id"])
-
-            # candidatos na mesma máquina
-            jobs_same_m = jobs_information_df.loc[
-                jobs_information_df["assigned_machine_id"].eq(c_machine_id)
-            ]
-
-            # machos compatíveis (sem setup entre si)
-            kps_not_setup = [c_kp]
-            if (c_kp, c_machine_id) in kp_macho_data:
-                kps_not_setup += kp_macho_data[(c_kp, c_machine_id)]["not_setup"]
-
-            jobs_sem_setup = jobs_same_m.loc[
-                jobs_same_m["_kf_macho"].isin(kps_not_setup)
-                & jobs_same_m["job_id"].ne(c_id)
-            ]
-
-            for j in jobs_sem_setup["job_id"].unique().tolist():
-                if j == c_id:
-                    continue
-                pairs_no_setup.append(
-                    {"machine_id": c_machine_id, "job_i": c_id, "job_j": int(j)}
-                )
-
-        # ===========================================================
-        # Debug opcional
-        # ===========================================================
-        # print(f"[DEBUG] kp_macho_data: {len(kp_macho_data)} combinações")
-        # print(f"[DEBUG] setup_data: {len(setup_time_rows)} registros")
-        # print(f"[DEBUG] pairs_not_setup: {len(pairs_no_setup)} pares")
-
-        return jobs_information_df, setup_time_rows, pairs_no_setup, triplice_no_setup
-
+        return {m_id: dict(froms) for m_id, froms in setups.items()}
 
     # -------------------------------------------------------------------------
     # 4. MÉTODO PRINCIPAL
@@ -688,39 +493,17 @@ class SchedulingInputBuilder:
         business_days,
         setup_df,
         setup_times_df,
-        mode: str,
     ) -> Dict:
         machines = self.build_machines_information(
-            demand_df, machines_df, caps_df, shifts_df, business_days, mode
+            demand_df, machines_df, caps_df, shifts_df, business_days
         )
-        # jobs base
-        jobs = self.build_jobs_information(demand_df, machines, business_days, mode)
+        jobs = self.build_jobs_information(demand_df, machines, business_days)
+        setups = self.build_setups(
+            machines, setup_df, setup_times_df, pd.DataFrame(jobs)
+        )
 
-        setup_data: List[Dict] = []
-        pairs_not_setup: List[Dict] = []
-
-        # === versão idêntica ao original ===
-        if mode == "gap":
-            jobs_df, setup_time_rows, pairs_no_setup, _ = self._build_setups_and_pairs_exact(
-                machines_information=machines,
-                setup_df=setup_df,
-                setup_times_df=setup_times_df,
-                jobs_information=jobs,
-                
-            )
-            jobs = jobs_df.to_dict(orient="records")
-            setup_data = setup_time_rows
-            pairs_not_setup = pairs_no_setup
-            setups = []  # no GAP, lista de setups pairwise não entra; usamos setup_data/pairs_not_setup
-        else:
-            # timeindex mantém matriz de tempos de setup como arcos (opcional ao seu solver)
-            # Se você quiser exatamente como o JobSchedulingInput original,
-            # mantenha "setups" criando slots a partir de setup_times_df (já estava no seu código).
-            setups = self.build_setups(machines, setup_df, setup_times_df, pd.DataFrame(jobs))
-
-        # Cabeçalho identico ao original
         count_time_slots = len(business_days) * self.cfg.slots_per_day
-        payload = {
+        return {
             "count_time_slots": count_time_slots,
             "count_jobs": len(jobs),
             "time_step": self.cfg.time_step,
@@ -731,15 +514,13 @@ class SchedulingInputBuilder:
             "machines": machines,
             "jobs": jobs,
             "setups": setups,
-            "setup_data": setup_data,
-            "pairs_not_setup": pairs_not_setup,
         }
-        return payload
 
 
 # -----------------------------------------------------------------------------
 # Leitura e preparo de dados
 # -----------------------------------------------------------------------------
+
 
 def load_demand(base_data: Path) -> pd.DataFrame:
     """
@@ -764,61 +545,19 @@ def load_demand(base_data: Path) -> pd.DataFrame:
     # Concatenar todos os DataFrames
     df = pd.concat(df_list, ignore_index=True)
 
-    # Renomear e ajustar colunas para formatos canônicos
-    def _canonical_key(name: str) -> str:
-        return re.sub(r"[^0-9a-z]+", "", name.lower())
-
-    canonical_columns = {
-        _canonical_key("Not_Before_Date"): "not_before_date",
-        _canonical_key("DeadLine"): "deadline",
-        _canonical_key("tempo_total"): "Tempo Total (minutos)",  # compat.
-        _canonical_key("StatusIntegrationId"): "status_integration_id",
-        _canonical_key("statusintegrationid"): "status_integration_id",
-        _canonical_key("statusIntegrationId"): "status_integration_id",
-        _canonical_key("dataHoraProcess"): "dataHoraProcess",
-        _canonical_key("datahoraprocess"): "dataHoraProcess",
-        _canonical_key("_kf_FichaTecnica"): "_kf_FichaTecnica",
-        _canonical_key("_kf_fichatecnica"): "_kf_FichaTecnica",
-        #  todas as variações conhecidas de _kf_macho
-        _canonical_key("_kf_Macho"): "_kf_macho",
-        _canonical_key("_Kf_Macho"): "_kf_macho",
-        _canonical_key("_KfMacho"): "_kf_macho",
-        _canonical_key("_kf_macho"): "_kf_macho",
-        _canonical_key("kf_macho"): "_kf_macho",
-        _canonical_key("macho"): "_kf_macho",
-    }
-
-    # Criar mapa de renomeação
-    rename_map = {}
-    for column in df.columns:
-        key = _canonical_key(column)
-        if key in canonical_columns:
-            rename_map[column] = canonical_columns[key]
-
-    # Aplicar renomeação
-    df = df.rename(columns=rename_map)
-
-    # 🔧 Garantir que a coluna _kf_macho exista
-    if "_KfMacho" in df.columns:
-        df.rename(columns={"_KfMacho": "_kf_macho"}, inplace=True)
-    elif "_Kf_Macho" in df.columns:
-        df.rename(columns={"_Kf_Macho": "_kf_macho"}, inplace=True)
-    elif "KfMacho" in df.columns:
-        df.rename(columns={"KfMacho": "_kf_macho"}, inplace=True)
-    elif "Kf_Macho" in df.columns:
-        df.rename(columns={"Kf_Macho": "_kf_macho"}, inplace=True)
-
-    print(" Colunas após rename:", list(df.columns))
-
-    if "status_integration_id" not in df.columns:
-        df["status_integration_id"] = pd.Series(pd.NA, dtype="string", index=df.index)
+    df = df.rename(
+        columns={
+            "Not_Before_Date": "not_before_date",
+            "DeadLine": "deadline",
+            "tempo_total": "Tempo Total (minutos)",
+        }
+    )
 
     df = df.assign(
         not_before_date=lambda d: pd.to_datetime(d["not_before_date"], errors="coerce"),
         deadline=lambda d: pd.to_datetime(d["deadline"], errors="coerce"),
         processo=lambda d: d["processo"].astype("string").map(normalize_string),
         recurso=lambda d: d["recurso"].astype("string").map(normalize_string),
-        status_integration_id=lambda d: d["status_integration_id"].astype("string"),
     )
     df["machine_name"] = df["processo"] + "_" + df["recurso"]
     df["lateness"] = 0
@@ -826,7 +565,6 @@ def load_demand(base_data: Path) -> pd.DataFrame:
 
     logger.info("Demandas (operações) carregadas: %d", df.shape[0])
     return df
-
 
 
 def validate_and_fix_demand(
@@ -842,7 +580,6 @@ def validate_and_fix_demand(
     # 2) faltar colunas essenciais -> remove
     required_cols = [
         "not_before_date",
-        "_kf_FichaTecnica",
         "caixa",
         "processo",
         "recurso",
@@ -879,18 +616,15 @@ def load_aux_tables(
 
     ensure_exists(parameters_path, kind="dir")
 
-    # Definir os caminhos dos arquivos
     machines_csv = parameters_path / "brut_machine_information.csv"
     cap_csv = parameters_path / "brut_recurso_time_capacity.csv"
     shifts_csv = parameters_path / "brut_shifts.csv"
     setup_csv = parameters_path / "setup.csv"
     setup_times_csv = parameters_path / "setup_times.csv"
 
-    # Garantir que os arquivos existem
     for f in (machines_csv, cap_csv, shifts_csv, setup_csv, setup_times_csv):
         ensure_exists(f)
 
-    # Carregar os arquivos CSV
     machines = pd.read_csv(
         machines_csv,
         converters={
@@ -952,7 +686,7 @@ def filter_demand_by_horizon(
 # -----------------------------------------------------------------------------
 def run(paths: IOPaths, cfg: RunConfig) -> None:
     # --- Carregar dados principais ---
-    
+
     demand_df = load_demand(paths.base_data)
     demand_df = validate_and_fix_demand(demand_df, paths.output_dir, cfg.day_start)
     business_days = compute_business_days(cfg.day_start)
@@ -961,36 +695,31 @@ def run(paths: IOPaths, cfg: RunConfig) -> None:
     demand_df["job_id"] = np.arange(len(demand_df), dtype=int)
 
     # Limitar a demanda aos 10 primeiros jobs
-    #demand_df = demand_df.head(10).reset_index(drop=True)
     demand_df["job_id"] = np.arange(len(demand_df), dtype=int)
     logger.info("Demanda reduzida para %d jobs (teste)", len(demand_df))
-
 
     machines_df, caps_df, shifts_df, setup_df, setup_times_df = load_aux_tables(
         paths.base_data, paths.model_config_dir
     )
-    
 
-
-    # --- Builder unificado ---
     builder = SchedulingInputBuilder(cfg)
-
-    gap_data = builder.create_input(
-        demand_df, machines_df, caps_df, shifts_df,
-        business_days, setup_df, setup_times_df, mode="gap"
+    payload = builder.create_input(
+        demand_df,
+        machines_df,
+        caps_df,
+        shifts_df,
+        business_days,
+        setup_df,
+        setup_times_df,
     )
-    time_data = builder.create_input(
-        demand_df, machines_df, caps_df, shifts_df,
-        business_days, setup_df, setup_times_df, mode="timeindex"
-    )
 
-    # Caminho de saída
-    unified_path = paths.output_dir / "macharia_input.json"
+    out_path = paths.output_dir / "input.json"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
 
-    unify_jsons(gap_data, time_data, unified_path)
+    with out_path.open("w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2, ensure_ascii=False)
 
-    
-
+    logger.info("Gerado arquivo com sucesso: %s", out_path)
 
 
 # -----------------------------------------------------------------------------
@@ -1093,11 +822,7 @@ def main() -> None:
     else:
         status_to_process = available_status_dirs
 
-    possible_parameter_sources = [date_dir / "parameters", raw_root / "parameters"]
-    model_config_dir = ensure_model_config_directory(
-        model_config_dir, possible_parameter_sources
-    )
-
+    # Configuração dos parâmetros
     day_start_value = args.day_start or f"{args.dt} 00:00"
     day_start_ts = pd.to_datetime(day_start_value)
     time_step = int(args.time_step)
@@ -1129,84 +854,6 @@ def main() -> None:
         )
 
         run(paths, cfg)
-
-
-def unify_jsons(gap_data: dict, time_data: dict, out_path: Path) -> Path:
-    """Une dados de GAP e Time-Index (em memória) e salva o JSON final unificado."""
-    # ========================
-    #  UNIFICAÇÃO DE JOBS
-    # ========================
-    gap_jobs = {j["job_id"]: j for j in gap_data.get("jobs", [])}
-    unified_jobs = []
-    for job in time_data.get("jobs", []):
-        job_id = job.get("job_id")
-        gap_job = gap_jobs.get(job_id, {})
-
-        job["gap"] = {
-            "release_date_index": gap_job.get("release_date_index"),
-            "deadline_date_index": gap_job.get("deadline_date_index"),
-            "processing_minutes": gap_job.get("processing_minutes"),
-            "config": gap_job.get("config"),
-        }
-        job["time-index"] = {
-            "release_date_slot": job.get("release_date_slot"),
-            "deadline_slot": job.get("deadline_slot"),
-            "processing_slots": job.get("processing_slots"),
-        }
-        unified_jobs.append(job)
-
-    # =========================
-    #  UNIFICAÇÃO DE MÁQUINAS
-    # =========================
-    gap_machines = {m["machine_id"]: m for m in gap_data.get("machines", [])}
-    unified_machines = []
-    for machine in time_data.get("machines", []):
-        machine_id = machine.get("machine_id")
-        gap_machine = gap_machines.get(machine_id, {})
-        machine["gap"] = {"work_time_per_day": gap_machine.get("work_time_per_day")}
-        machine["time-index"] = {"time_capacity": machine.get("time_capacity")}
-        unified_machines.append(machine)
-
-    setup_data = gap_data.get("setup_data", [])
-    pairs_not_setup = gap_data.get("pairs_not_setup", [])
-
-    machine_fields_to_keep = [
-        "machine_id", "machine_name", "start_slots", "job_capacity", "gap", "time-index"
-    ]
-    job_fields_to_keep = [
-        "job_id", "op", "_kf_macho", "kp_fichaTecnica", "job_register_id",
-        "assigned_machine_id", "gap", "time-index", "status_integration_id",
-        "Status_Processed", "has_lateness","enhance_processing_time"
-    ]
-
-    filtered_machines = [
-        {k: v for k, v in m.items() if k in machine_fields_to_keep}
-        for m in unified_machines
-    ]
-    filtered_jobs = [
-        {k: v for k, v in j.items() if k in job_fields_to_keep}
-        for j in unified_jobs
-    ]
-
-    unified_payload = time_data.copy()
-    unified_payload["jobs"] = filtered_jobs
-    unified_payload["machines"] = filtered_machines
-    unified_payload["setup_data"] = setup_data
-    unified_payload["pairs_not_setup"] = pairs_not_setup
-
-    class PrettyEncoder(json.JSONEncoder):
-        def iterencode(self, o, _one_shot=False):
-            for s in super().iterencode(o, _one_shot=_one_shot):
-                s = s.replace("], [", "],\n          [")
-                yield s
-
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    with out_path.open("w", encoding="utf-8") as f:
-        json.dump(unified_payload, f, cls=PrettyEncoder, indent=2, ensure_ascii=False)
-
-    logger.info("Gerado arquivo unificado com sucesso: %s", out_path)
-    return out_path
-
 
 
 if __name__ == "__main__":
