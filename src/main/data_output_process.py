@@ -1,14 +1,14 @@
-import os
-import json
-import shutil
-import pandas as pd
-import logging
 import argparse
-from pathlib import Path
-from datetime import datetime, timedelta
+import json
+import logging
+import os
+import shutil
 from dataclasses import dataclass
+from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
 
+import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
@@ -141,7 +141,6 @@ class JobSchedulingOutput:
                     {
                         "job_id": j_id,
                         "order_id": job_in.get("order_id"),
-                        "caixa": job_in.get("job_register_id"),
                         "resource_id": job_in.get("resource_id"),
                         "maquina": m_name,
                         "inicio": inicio,
@@ -149,8 +148,6 @@ class JobSchedulingOutput:
                         "not_before_date": release,
                         "deadline": deadline,
                         "sub_machine": job.get("sub_machine", 0),
-                        "has_lateness": int(job_in.get("has_lateness", 0)),
-                        "status_integration_id": job_in.get("status_integration_id"),
                         "Status_Processed": job_in.get("Status_Processed", ""),
                     }
                 )
@@ -162,7 +159,6 @@ class JobSchedulingOutput:
                     {
                         "job_id": j["id"],
                         "order_id": j.get("order_id"),
-                        "caixa": j.get("job_register_id"),
                         "resource_id": j.get("resource_id"),
                         "maquina": machine_id_to_name.get(m_id, ""),
                         "inicio": pd.NaT,
@@ -174,8 +170,6 @@ class JobSchedulingOutput:
                             init_date, time_step, j.get("due_date_slot")
                         ),
                         "sub_machine": 0,
-                        "has_lateness": int(j.get("has_lateness", 0)),
-                        "status_integration_id": j.get("status_integration_id"),
                         "Status_Processed": j.get("Status_Processed", ""),
                     }
                 )
@@ -191,8 +185,8 @@ class JobSchedulingOutput:
 
         df["delay"] = (df["fim"] - df["deadline"]).dt.days.fillna(0).clip(lower=0)
         df["tempo_processamento"] = (
-            (df["fim"] - df["inicio"]).dt.total_seconds() / 60
-        ).fillna(0).astype(int)
+            ((df["fim"] - df["inicio"]).dt.total_seconds() / 60).fillna(0).astype(int)
+        )
 
         demanda_dir = output_dir / "demanda"
         demanda_dir.mkdir(parents=True, exist_ok=True)
@@ -207,9 +201,7 @@ class JobSchedulingOutput:
             allow_truncated_timestamps=True,
         )
         df.to_csv(csv_path, index=False, encoding="utf-8")
-        logger.info(
-            "Arquivos salvos:\n  - %s\n  - %s", parquet_path, csv_path
-        )
+        logger.info("Arquivos salvos:\n  - %s\n  - %s", parquet_path, csv_path)
         return df
 
 
@@ -266,9 +258,7 @@ def main() -> None:
         found_map = {name.lower(): path for name, path in available_status_dirs}
         missing = sorted(requested - set(found_map.keys()))
         if missing:
-            raise SystemExit(
-                "Status não encontrados: " + ", ".join(missing)
-            )
+            raise SystemExit("Status não encontrados: " + ", ".join(missing))
         status_to_process = [
             (name, found_map[name.lower()]) for name in args.only_status
         ]
