@@ -338,6 +338,7 @@ class SchedulingInputBuilder:
                     "op": safe_int(row.get("_kf_producao")),
                     "_kf_macho": safe_int(row.get("_kf_macho")),
                     "assigned_machine_id": machine_id,
+                    "Status_Processed": row.get("Status_Processed", ""),
                 }
 
                 release_slot = int(
@@ -681,7 +682,9 @@ def filter_demand_by_horizon(
             mask.sum(),
             last_day.date().isoformat(),
         )
-        demand_df.loc[mask, "Status_Processed"] = "Erro not before posterior a sexta"
+        demand_df.loc[mask, "Status_Processed"] = (
+            "Erro not before posterior ao ultimo dia"
+        )
 
     return demand_df
 
