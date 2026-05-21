@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from time import process_time
+from time import perf_counter, process_time
 
 import pyomo.environ as pyo
 from entities import Job, Machine
@@ -14,9 +14,11 @@ INPUT_NAME = "input.json"
 
 
 class TimeIndex:
-    def __init__(self, machine: Machine, jobs: list[Job]):
+    def __init__(self, machine: Machine, jobs: list[Job], setup_data: dict):
         self.machine_data = machine
         self.jobs_data = jobs
+        self.setup_data = setup_data
+
         # Informações que serão utilizadas na modelagem
         self.time_slots_job = {
             job.id: [
@@ -54,6 +56,32 @@ class TimeIndex:
     def _max_completion_time_rule(self, model, job: Job):
         return model.C_max >= model.C[job.id]
 
+    def _setup_machine_rule(self, model, job_i: Job, job_j: Job, t: int, m: int):
+        # Tempos de setup: i→j e j→i (0 se não houver)
+        s_ij = self.setup_data.get(str(job_i.id), {}).get(str(job_j.id), 0)
+        s_ji = self.setup_data.get(str(job_j.id), {}).get(str(job_i.id), 0)
+
+        # Janela proibida para j dado que i começa em t
+        window_start = t - job_j.processing_slots - s_ji + 1
+        window_end = t + job_i.processing_slots + s_ij - 1
+
+        # Slots de j que caem na janela E existem como variável no modelo
+        forbidden = [
+            s
+            for s in self.time_slots_job[job_j.id]  # apenas slots válidos de j
+            if window_start <= s <= window_end  # dentro da janela proibida
+        ]
+
+        # Se nenhum slot de j cai na janela, a restrição é trivialmente satisfeita
+        if not forbidden:
+            return pyo.Constraint.Skip
+
+        # sum x_jsm <= 1 - x_itm
+        return (
+            sum(model.x[job_j.id, s, m] for s in forbidden)
+            <= 1 - model.x[job_i.id, t, m]
+        )
+
     def generate_output(self) -> dict:
         model = self.model
         machine_id = self.machine_data.id
@@ -80,6 +108,8 @@ class TimeIndex:
             "machines_scheduling": [
                 {
                     "machine_id": machine_id,
+                    "c_max": self.c_max_value,
+                    "solve_time_seconds": round(self.solve_time, 3),
                     "jobs": scheduled_jobs,
                 }
             ]
@@ -99,6 +129,16 @@ class TimeIndex:
             (job_id, t, m)
             for job_id, slots in time_slots_job.items()
             for t in slots
+            for m in range(count_machines)
+        ]
+
+        # Indexes para a restrição de setup dentro da máquina
+        setup_indexes = [
+            (job_i, job_j, t, m)
+            for job_i in jobs_data
+            for job_j in jobs_data
+            if job_i.id != job_j.id
+            for t in time_slots_job[job_i.id]
             for m in range(count_machines)
         ]
         W = time_slots[-1] + 1
@@ -124,6 +164,9 @@ class TimeIndex:
             jobs_data, rule=self._max_completion_time_rule
         )
 
+        model.setup_machine = pyo.Constraint(
+            setup_indexes, rule=self._setup_machine_rule
+        )
         model.penalty = sum(W * model.y[job.id] for job in jobs_data)
         model.objective = pyo.Objective(
             expr=model.C_max + model.penalty, sense=pyo.minimize
@@ -131,11 +174,14 @@ class TimeIndex:
         model.write("model.lp", io_options={"symbolic_solver_labels": True})
 
         solver = pyo.SolverFactory("highs")
+        _t0 = perf_counter()
         result = solver.solve(model, tee=True)
+        self.solve_time = perf_counter() - _t0
+        self.c_max_value = pyo.value(model.C_max)
 
         print(result.solver.status)
         print(result.solver.termination_condition)
-        print(pyo.value(model.C_max))
+        print(self.c_max_value)
 
 
 def main(data_input_path: Path, data_output_path: Path):
@@ -144,13 +190,17 @@ def main(data_input_path: Path, data_output_path: Path):
 
     machines = data["machines"]
     jobs = data["jobs"]
+    setups_data = data["setups"]
 
     all_machine_schedules = []
 
     for machine in machines:
         machine_id = machine["machine_id"]
         machine_name = machine["machine_name"]
-        if machine_name == "pepset_carrossel":
+        # if machine_name == "pepset_carrossel":
+        #    continue
+        print(machine_name)
+        if machine_name != "coldboxgasado_coldbox4":
             continue
         jobs_machine = [
             job
@@ -161,14 +211,22 @@ def main(data_input_path: Path, data_output_path: Path):
 
         jobs_machine = [Job.from_dict(job) for job in jobs_machine]
         machine = Machine.from_dict(machine)
-        time_index_model = TimeIndex(machine=machine, jobs=jobs_machine)
+        machine_setups = setups_data.get(str(machine_id), {})
+        time_index_model = TimeIndex(
+            machine=machine, jobs=jobs_machine, setup_data=machine_setups
+        )
         time_index_model.optimize()
 
         output = time_index_model.generate_output()
         all_machine_schedules.extend(output["machines_scheduling"])
 
     with open(data_output_path, "w") as f:
-        json.dump({"machines_scheduling": all_machine_schedules}, f, indent=2, ensure_ascii=False)
+        json.dump(
+            {"machines_scheduling": all_machine_schedules},
+            f,
+            indent=2,
+            ensure_ascii=False,
+        )
 
 
 if __name__ == "__main__":
