@@ -188,6 +188,8 @@ class JobSchedulingOutput:
             ((df["fim"] - df["inicio"]).dt.total_seconds() / 60).fillna(0).astype(int)
         )
 
+        df = df.sort_values(["maquina", "inicio"], na_position="last").reset_index(drop=True)
+
         demanda_dir = output_dir / "demanda"
         demanda_dir.mkdir(parents=True, exist_ok=True)
         current_date = datetime.now().strftime("%Y-%m-%d")

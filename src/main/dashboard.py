@@ -15,7 +15,7 @@ logging.basicConfig(level=logging.INFO)
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 TRUSTED_ROOT = BASE_DIR / "data" / "trusted"
-MODEL_CONFIG_DIR = BASE_DIR / "data" / "model_config"
+MODEL_CONFIG_DIR = BASE_DIR / "data" / "raw" / "model_config"
 WORK_DAYS = ["segunda", "terca", "quarta", "quinta", "sexta", "sabado", "domingo"]
 
 st.set_page_config(page_title="Planejamento de Produção", layout="wide")

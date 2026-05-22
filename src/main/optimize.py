@@ -82,6 +82,37 @@ class TimeIndex:
             <= 1 - model.x[job_i.id, t, m]
         )
 
+    def minimize_max_completion_time(
+        self, model, time_slots: list[int], jobs_data: list[Job]
+    ):
+        self.objective_type = "c_max"
+        # Máximo completion time
+        model.C_max = pyo.Var(domain=pyo.NonNegativeReals)
+        model.max_complation_time = pyo.Constraint(
+            jobs_data, rule=self._max_completion_time_rule
+        )
+
+        W = time_slots[-1] + 1
+        print(f"Valor de big W: {W}")
+        model.penalty = sum(W * model.y[job.id] for job in jobs_data)
+        model.objective = pyo.Objective(
+            expr=model.C_max + model.penalty, sense=pyo.minimize
+        )
+
+    def minmize_sum_completion_time(
+        self, model, time_slots: list[int], jobs_data: list[Job]
+    ):
+        self.objective_type = "sum_completion_time"
+        model.objective_expr = sum(model.C[job.id] for job in jobs_data)
+
+        # O valor máximo do somatorio do completion time, é quando todos os jobs terminam no último slot
+        # Logo, quando um único job termine no último slot, isso é pior do que alocar todos os jobs no último slot
+        W = len(jobs_data) * time_slots[-1] + 1
+        model.penalty = sum(W * model.y[job.id] for job in jobs_data)
+        model.objective = pyo.Objective(
+            expr=model.objective_expr + model.penalty, sense=pyo.minimize
+        )
+
     def generate_output(self) -> dict:
         model = self.model
         machine_id = self.machine_data.id
@@ -108,7 +139,7 @@ class TimeIndex:
             "machines_scheduling": [
                 {
                     "machine_id": machine_id,
-                    "c_max": self.c_max_value,
+                    self.objective_type: self.objective_value,
                     "solve_time_seconds": round(self.solve_time, 3),
                     "jobs": scheduled_jobs,
                 }
@@ -141,8 +172,6 @@ class TimeIndex:
             for t in time_slots_job[job_i.id]
             for m in range(count_machines)
         ]
-        W = time_slots[-1] + 1
-        print(f"Valor de big W: {W}")
 
         model.indexes = pyo.Set(initialize=indexes, dimen=3)
         model.jobs_id = pyo.Set(initialize=jobs_id)
@@ -153,35 +182,29 @@ class TimeIndex:
 
         # Completion time de cada job
         model.C = pyo.Var(model.jobs_id, domain=pyo.NonNegativeReals, name="completion")
-        # Máximo completion time
-        model.C_max = pyo.Var(domain=pyo.NonNegativeReals)
 
         model.single_start = pyo.Constraint(jobs_data, rule=self._single_start_rule)
         model.completion_time = pyo.Constraint(
             jobs_data, rule=self._completion_time_rule
         )
-        model.max_complation_time = pyo.Constraint(
-            jobs_data, rule=self._max_completion_time_rule
-        )
-
         model.setup_machine = pyo.Constraint(
             setup_indexes, rule=self._setup_machine_rule
         )
-        model.penalty = sum(W * model.y[job.id] for job in jobs_data)
-        model.objective = pyo.Objective(
-            expr=model.C_max + model.penalty, sense=pyo.minimize
-        )
+        self.minmize_sum_completion_time(model, time_slots, jobs_data)
         model.write("model.lp", io_options={"symbolic_solver_labels": True})
 
         solver = pyo.SolverFactory("highs")
         _t0 = perf_counter()
         result = solver.solve(model, tee=True)
         self.solve_time = perf_counter() - _t0
-        self.c_max_value = pyo.value(model.C_max)
+        if self.objective_type == "c_max":
+            self.objective_value = pyo.value(model.C_max)
+        else:
+            self.objective_value = pyo.value(model.objective_expr)
 
         print(result.solver.status)
         print(result.solver.termination_condition)
-        print(self.c_max_value)
+        print(f"{self.objective_type}: {self.objective_value}")
 
 
 def main(data_input_path: Path, data_output_path: Path):
