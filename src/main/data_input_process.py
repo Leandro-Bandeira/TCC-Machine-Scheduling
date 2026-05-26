@@ -34,6 +34,7 @@ WORK_DAYS = ["segunda", "terca", "quarta", "quinta", "sexta", "sabado", "domingo
 DEFAULT_DAY_START = "2025-09-15 00:00"
 DEFAULT_TIME_STEP = 5  # minutos
 SLOTS_PER_DAY_DEFAULT = (24 * 60) // DEFAULT_TIME_STEP
+BIG_SETUP_MINUTES = 5 * 60  # 5 horas
 
 # -----------------------------------------------------------------------------
 # Funções auxiliares
@@ -508,18 +509,34 @@ class SchedulingInputBuilder:
         }
         jobs = [{_rename.get(k, k): v for k, v in job.items()} for job in jobs]
 
+        machine_resource_jobs: Dict[str, Dict[str, List[int]]] = defaultdict(
+            lambda: defaultdict(list)
+        )
+        for job in jobs:
+            if job["Status_Processed"] != "":
+                continue
+            m_id = str(job["assigned_machine_id"])
+            r_id = str(job["resource_id"])
+            machine_resource_jobs[m_id][r_id].append(job["id"])
+        machine_resource_jobs = {
+            m_id: dict(resources) for m_id, resources in machine_resource_jobs.items()
+        }
+
         count_time_slots = len(business_days) * self.cfg.slots_per_day
+        big_setup_slots = math.ceil(BIG_SETUP_MINUTES / self.cfg.time_step)
         return {
             "count_time_slots": count_time_slots,
             "count_jobs": len(jobs),
             "time_step": self.cfg.time_step,
             "slots_per_day": self.cfg.slots_per_day,
+            "big_setup": big_setup_slots,
             "init_date": business_days[0].strftime("%Y-%m-%d %H:%M"),
             "final_date": business_days[-1].date().isoformat(),
             "n_days": len(business_days),
             "machines": machines,
             "jobs": jobs,
             "setups": setups,
+            "machine_resource_jobs": machine_resource_jobs,
         }
 
 
