@@ -1,9 +1,10 @@
+import argparse
 import json
 from bisect import bisect_left, bisect_right
 from collections import defaultdict
+from datetime import datetime
 from pathlib import Path
-from this import d
-from time import perf_counter, process_time, time
+from time import perf_counter
 
 import pyomo.environ as pyo
 from entities import Job, Machine
@@ -222,7 +223,7 @@ class TimeIndex:
 
         # Indexes para a restrição de recursos
         resource_indexes = [
-            (resource_id, job_i, job_j, m)
+            (resource_id, job_i, job_j, t, m)
             for resource_id, resource_jobs in resource_groups.items()
             for job_i in resource_jobs
             for job_j in resource_jobs
@@ -290,7 +291,7 @@ def main(data_input_path: Path, data_output_path: Path):
     machines = data["machines"]
     jobs = data["jobs"]
     setups_data = data["setups"]
-    resources_data = data["resources"]
+    resources_data = data["machine_resource_jobs"]
     all_machine_schedules = []
     big_setup = data["big_setup"]
 
@@ -337,7 +338,62 @@ def main(data_input_path: Path, data_output_path: Path):
         )
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Otimiza o sequenciamento para uma data e lote específicos."
+    )
+    default_root = Path(__file__).resolve().parent.parent.parent
+    parser.add_argument(
+        "--dt",
+        required=True,
+        help="Data no formato YYYY-MM-DD.",
+    )
+    parser.add_argument(
+        "--trusted-root",
+        type=Path,
+        default=default_root / "data" / "trusted",
+        help="Diretório raiz das instâncias (default: data/trusted).",
+    )
+    parser.add_argument(
+        "--only-status",
+        nargs="+",
+        default=None,
+        help="Lista de status a processar. Se omitido, processa todos.",
+    )
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
-    data_input_path = TRUSTED_DIR / "13102025" / "34" / "input.json"
-    data_output_path = TRUSTED_DIR / "13102025" / "34" / "output.json"
-    main(data_input_path=data_input_path, data_output_path=data_output_path)
+    args = parse_args()
+
+    try:
+        dt_obj = datetime.strptime(args.dt, "%Y-%m-%d").date()
+    except ValueError as exc:
+        raise SystemExit(f"Data inválida para --dt: {args.dt}") from exc
+
+    date_slug = dt_obj.strftime("%d%m%Y")
+    trusted_root: Path = args.trusted_root
+    date_dir = trusted_root / date_slug
+
+    if not date_dir.is_dir():
+        raise SystemExit(f"Diretório não encontrado: {date_dir}")
+
+    available = [
+        item.name
+        for item in sorted(date_dir.iterdir())
+        if item.is_dir() and (item / "input.json").exists()
+    ]
+
+    if not available:
+        raise SystemExit(f"Nenhum input.json encontrado em {date_dir}")
+
+    status_list = args.only_status if args.only_status else available
+
+    for status in status_list:
+        data_input_path = trusted_root / date_slug / status / "input.json"
+        data_output_path = trusted_root / date_slug / status / "output.json"
+        if not data_input_path.exists():
+            print(f"[AVISO] input.json não encontrado: {data_input_path}")
+            continue
+        print(f"\n=== Otimizando {date_slug}/{status} ===")
+        main(data_input_path=data_input_path, data_output_path=data_output_path)

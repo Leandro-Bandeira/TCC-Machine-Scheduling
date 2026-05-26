@@ -2,11 +2,26 @@
 
 Pipeline de otimização de sequenciamento de produção usando o modelo **Time-Index** (Pyomo + HiGHS).
 
+## Estrutura do projeto
+
+```
+src/
+  main/        ← pipeline de otimização
+    data_input_process.py
+    optimize.py
+    data_output_process.py
+    entities.py
+  analysis/    ← ferramentas de análise e visualização (independentes do otimizador)
+    dashboard.py
+    instances_data.py
+```
+
 ## Estrutura do pipeline
 
 ```
-data_input_process.py  →  optimize.py  →  data_output_process.py  →  dashboard.py
-      input.json              output.json          result.parquet / .csv       Gantt
+data_input_process.py  →  optimize.py  →  data_output_process.py
+      input.json              output.json       result.parquet / .csv
+                                                data/latest/<status>/
 ```
 
 ---
@@ -42,10 +57,16 @@ Saída: `data/trusted/<DDMMYYYY>/<status>/input.json`
 Lê o `input.json`, resolve um modelo Time-Index por máquina e gera o `output.json`.
 
 ```bash
-python src/main/optimize.py
+python src/main/optimize.py \
+  --dt 2025-10-13
 ```
 
-O caminho de entrada/saída está fixo no bloco `__main__` do arquivo. Edite `data_input_path` e `data_output_path` antes de rodar.
+Argumentos opcionais:
+
+| Argumento | Padrão | Descrição |
+|---|---|---|
+| `--trusted-root` | `data/trusted` | Diretório raiz das instâncias |
+| `--only-status` | todos | Processar apenas lotes específicos (ex: `34 35`) |
 
 Saída: `data/trusted/<DDMMYYYY>/<status>/output.json`
 
@@ -63,20 +84,72 @@ python src/main/data_output_process.py \
 
 Argumento opcional `--only-status` funciona igual ao passo 1.
 
-Saída: `data/trusted/<DDMMYYYY>/<status>/demanda/result_<data>.parquet` e `.csv`
+Saídas:
+- `data/trusted/<DDMMYYYY>/<status>/demanda/result_<data>.parquet` e `.csv` — histórico com data
+- `data/latest/<status>/result.parquet`, `result.csv` e `input.json` — sobrescrito a cada execução
 
 ---
 
-### 4. Dashboard
+## Ferramentas de análise (`src/analysis/`)
 
-Requer que o passo 3 tenha sido executado (usa o parquet gerado).
+Ferramentas independentes do otimizador para visualização e exploração dos dados.
+
+### Dashboard
+
+Requer que o passo 3 tenha sido executado. Lê automaticamente de `data/latest/`.
 
 ```bash
-streamlit run src/main/dashboard.py -- \
-  --dt 2025-10-13 \
-  --trusted-root data/trusted \
-  --model-config-dir data/model_config
+streamlit run src/analysis/dashboard.py -- \
+  --model-config-dir data/raw/model_config
 ```
+
+Argumentos opcionais:
+
+| Argumento | Padrão | Descrição |
+|---|---|---|
+| `--latest-dir` | `data/latest` | Diretório com os resultados mais recentes |
+| `--model-config-dir` | `data/raw/model_config` | Diretório com os arquivos de parâmetros do modelo |
+
+### Resultados de otimização
+
+Lê todos os `output.json` em `data/trusted/`, cruza com o `input.json` correspondente para obter o nome da máquina e gera um CSV consolidado.
+
+```bash
+python src/analysis/results_data.py
+```
+
+Saída: `data/results.csv`
+
+| Coluna | Origem | Descrição |
+|---|---|---|
+| `dt` | nome da pasta `<DDMMYYYY>` | Data da instância (YYYY-MM-DD) |
+| `status` | nome da subpasta | Lote processado |
+| `machine_name` | `input.json → machines` | Nome da máquina (via `machine_id`) |
+| `sum_completion_time` | `output.json` | Valor da função objetivo |
+| `count_jobs_not_allocated` | `output.json` | Jobs não alocados (penalizados) |
+| `solve_time_seconds` | `output.json` | Tempo de resolução do solver |
+| `count_machines` | `input.json → machines.job_capacity` | Número de sub-máquinas |
+
+---
+
+### Análise de instâncias
+
+Executa `data_input_process.py` para todos os lotes em `data/raw/` e gera um CSV com o tamanho de cada instância por máquina.
+
+```bash
+python src/analysis/instances_data.py
+```
+
+Saída: `data/instances.csv`
+
+| Coluna | Descrição |
+|---|---|
+| `date` | Data da instância (YYYY-MM-DD) |
+| `status` | Lote processado |
+| `machine_id` | ID da máquina |
+| `machine_name` | Nome da máquina |
+| `job_capacity` | Capacidade de sub-máquinas |
+| `count_jobs` | Quantidade de jobs alocados à máquina |
 
 ---
 

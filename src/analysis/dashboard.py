@@ -14,7 +14,7 @@ import streamlit as st
 logging.basicConfig(level=logging.INFO)
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-TRUSTED_ROOT = BASE_DIR / "data" / "trusted"
+LATEST_DIR = BASE_DIR / "data" / "latest"
 MODEL_CONFIG_DIR = BASE_DIR / "data" / "raw" / "model_config"
 WORK_DAYS = ["segunda", "terca", "quarta", "quinta", "sexta", "sabado", "domingo"]
 
@@ -23,8 +23,7 @@ st.set_page_config(page_title="Planejamento de Produção", layout="wide")
 
 def _parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dt", required=True, help="Data no formato YYYY-MM-DD")
-    parser.add_argument("--trusted-root", type=Path, default=TRUSTED_ROOT)
+    parser.add_argument("--latest-dir", type=Path, default=LATEST_DIR)
     parser.add_argument("--model-config-dir", type=Path, default=MODEL_CONFIG_DIR)
     args, _ = parser.parse_known_args()
     return args
@@ -94,6 +93,7 @@ def create_week_gantt(df: pd.DataFrame):
         color_discrete_map=machine_color_map,
     )
     fig.update_traces(hovertemplate="%{customdata[0]}")
+    fig.update_traces(marker_line_color="black", marker_line_width=2)
 
     rangebreaks = [dict(bounds=["sat", "mon"])]
     if hidden_weekdays:
@@ -165,6 +165,7 @@ def create_gantt_by_day(df: pd.DataFrame):
             color_discrete_map=machine_color_map,
         )
         fig.update_traces(hovertemplate="%{customdata[0]}")
+        fig.update_traces(marker_line_color="black", marker_line_width=2)
 
         yinfo = (
             df[["maquina", "machine_y", "machine_label"]]
@@ -410,44 +411,31 @@ def process_setups(
 
 def main():
     args = _parse_args()
+    latest_dir: Path = args.latest_dir
 
-    try:
-        dt_obj = datetime.strptime(args.dt, "%Y-%m-%d").date()
-    except ValueError:
-        st.error(f"Data inválida: {args.dt}")
-        st.stop()
-
-    date_slug = dt_obj.strftime("%d%m%Y")
-    date_dir = args.trusted_root / date_slug
-
-    if not date_dir.is_dir():
-        st.error(f"Diretório não encontrado: {date_dir}")
+    if not latest_dir.is_dir():
+        st.error(f"Diretório data/latest não encontrado: {latest_dir}. Execute data_output_process.py primeiro.")
         st.stop()
 
     status_dirs = [
-        item for item in sorted(date_dir.iterdir())
-        if item.is_dir() and (item / "input.json").exists()
+        item for item in sorted(latest_dir.iterdir())
+        if item.is_dir()
+        and (item / "input.json").exists()
+        and (item / "result.parquet").exists()
     ]
 
     if not status_dirs:
-        st.error("Nenhum lote com input.json encontrado.")
+        st.error("Nenhum resultado encontrado em data/latest. Execute data_output_process.py primeiro.")
         st.stop()
 
     st.sidebar.title("Configurações")
     selected = st.sidebar.selectbox("Status / Lote", [d.name for d in status_dirs])
-    status_dir = date_dir / selected
+    status_dir = latest_dir / selected
 
     with open(status_dir / "input.json") as f:
         input_data = json.load(f)
 
-    demanda_dir = status_dir / "demanda"
-    parquet_files = sorted(demanda_dir.glob("*.parquet")) if demanda_dir.exists() else []
-
-    if not parquet_files:
-        st.error("Nenhum parquet encontrado. Execute data_output_process.py primeiro.")
-        st.stop()
-
-    schedule_df = pd.read_parquet(parquet_files[-1])
+    schedule_df = pd.read_parquet(status_dir / "result.parquet")
 
     # Keep only scheduled jobs (pre-processed jobs have NaT inicio)
     schedule_df = schedule_df[schedule_df["inicio"].notna()].copy()

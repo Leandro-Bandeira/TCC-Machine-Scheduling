@@ -17,6 +17,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+LATEST_DIR = BASE_DIR / "data" / "latest"
+
 
 def ensure_exists(path: Path, kind: str = "file") -> None:
     if kind == "file" and not path.is_file():
@@ -93,7 +96,7 @@ class JobSchedulingOutput:
             return None
         return (init_date + timedelta(minutes=int(slot) * time_step)).to_pydatetime()
 
-    def run(self, output_dir: Path) -> pd.DataFrame:
+    def run(self, output_dir: Path, latest_dir: Optional[Path] = None) -> pd.DataFrame:
         input_file = output_dir / "input.json"
         output_file = output_dir / "output.json"
 
@@ -204,6 +207,19 @@ class JobSchedulingOutput:
         )
         df.to_csv(csv_path, index=False, encoding="utf-8")
         logger.info("Arquivos salvos:\n  - %s\n  - %s", parquet_path, csv_path)
+
+        if latest_dir is not None:
+            latest_dir.mkdir(parents=True, exist_ok=True)
+            pq.write_table(
+                pa.Table.from_pandas(df),
+                latest_dir / "result.parquet",
+                coerce_timestamps="us",
+                allow_truncated_timestamps=True,
+            )
+            df.to_csv(latest_dir / "result.csv", index=False, encoding="utf-8")
+            shutil.copy2(output_dir / "input.json", latest_dir / "input.json")
+            logger.info("Latest salvo em: %s", latest_dir)
+
         return df
 
 
@@ -270,7 +286,7 @@ def main() -> None:
     for status_label, status_dir in status_to_process:
         output_dir = trusted_root / date_slug / status_label
         logger.info("Processando status=%s | dir=%s", status_label, output_dir)
-        JobSchedulingOutput().run(output_dir)
+        JobSchedulingOutput().run(output_dir, latest_dir=LATEST_DIR / status_label)
         logger.info("Concluído: status=%s", status_label)
 
 
