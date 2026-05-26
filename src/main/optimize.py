@@ -303,7 +303,9 @@ def main(data_input_path: Path, data_output_path: Path):
         # print(machine_name)
         # if machine_name != "coldboxgasado_coldbox4":
         #    continue
-        if machine_name != "pepset_chao":
+        # if machine_name != "pepset_chao":
+        #    continue
+        if machine_name != "coldboxsoprado_sopradora":
             continue
 
         jobs_machine = [
