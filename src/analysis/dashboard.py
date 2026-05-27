@@ -77,7 +77,7 @@ def create_week_gantt(df: pd.DataFrame):
     ]
     machine_color_map = {m: palette[i % len(palette)] for i, m in enumerate(machines)}
     machine_color_map.update({
-        "SETUP": "black",
+        "SETUP": "#E67E22",
         "INDISPONIVEL": "#708090",
         "JOB_ATRASADO": "#d63031",
     })
@@ -149,7 +149,7 @@ def create_gantt_by_day(df: pd.DataFrame):
         machines = sorted(df["maquina"].dropna().unique().tolist())
         machine_color_map = {m: palette[i % len(palette)] for i, m in enumerate(machines)}
         machine_color_map.update({
-            "SETUP": "black",
+            "SETUP": "#E67E22",
             "INDISPONIVEL": "#708090",
             "JOB_ATRASADO": "#d63031",
         })

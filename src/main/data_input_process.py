@@ -415,6 +415,32 @@ class SchedulingInputBuilder:
                         "config": row["configuracao"],
                     }
 
+        # Fallback: recursos sem entrada em setup.csv → config "A" via setup_times.csv
+        recursos_com_setup = {
+            normalize_string(str(row["recurso"]))
+            for _, row in setup_df.iterrows()
+        }
+        for m in machines_information:
+            _, recurso = m["machine_name"].split("_", 1)
+            m_id = m["machine_id"]
+            if recurso in recursos_com_setup:
+                continue  # já tem mapeamento explícito em setup.csv
+            kps = (
+                jobs_df.loc[jobs_df["assigned_machine_id"].eq(m_id), "_kf_macho"]
+                .dropna()
+                .unique()
+            )
+            if not len(kps):
+                continue
+            for kp in kps:
+                key = (str(int(kp)), m_id)
+                if key not in kp_macho_data:
+                    kp_macho_data[key] = {"not_setup": [], "config": "A"}
+            logger.info(
+                "Fallback config='A' aplicado a recurso='%s' (machine_id=%d): %d _kf_machos distintos",
+                recurso, m_id, len(kps),
+            )
+
         # tempos de setup: (from_config, to_config, machine_id) -> slots
         setup_time_data: Dict[Tuple[str, str, int], int] = {}
         for _, row in setup_df_time.iterrows():

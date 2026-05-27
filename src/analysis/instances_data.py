@@ -2,6 +2,7 @@
 Executa data_input_process.py para todos os lotes em data/raw e gera
 data/instances.csv com o tamanho de cada instância.
 """
+
 import csv
 import json
 import subprocess
@@ -14,6 +15,10 @@ RAW_DIR = BASE_DIR / "data" / "raw"
 TRUSTED_DIR = BASE_DIR / "data" / "trusted"
 SCRIPTS_DIR = BASE_DIR / "src" / "main"
 INSTANCES_CSV = BASE_DIR / "data" / "instances.csv"
+RUN_CONFIG_JSON = BASE_DIR / "run_config.json"
+
+MIN_JOBS_DEFAULT = 10
+MAX_JOBS_DEFAULT = 40
 
 PYTHON = sys.executable
 
@@ -21,6 +26,7 @@ PYTHON = sys.executable
 # -----------------------------------------------------------------------------
 # Utilitários
 # -----------------------------------------------------------------------------
+
 
 def ddmmyyyy_to_iso(date_slug: str) -> str:
     """'13102025' → '2025-10-13'"""
@@ -48,15 +54,20 @@ def discover_batches(raw_dir: Path) -> list[tuple[str, str]]:
 # Pipeline
 # -----------------------------------------------------------------------------
 
+
 def run_data_input(date_iso: str) -> bool:
     """Executa data_input_process.py para uma data."""
     cmd = [
         PYTHON,
         str(SCRIPTS_DIR / "data_input_process.py"),
-        "--dt", date_iso,
-        "--raw-root", str(RAW_DIR),
-        "--trusted-root", str(TRUSTED_DIR),
-        "--model-config-dir", str(RAW_DIR / "model_config"),
+        "--dt",
+        date_iso,
+        "--raw-root",
+        str(RAW_DIR),
+        "--trusted-root",
+        str(TRUSTED_DIR),
+        "--model-config-dir",
+        str(RAW_DIR / "model_config"),
     ]
     print(f"  [input] --dt {date_iso}")
     result = subprocess.run(cmd)
@@ -66,6 +77,7 @@ def run_data_input(date_iso: str) -> bool:
 # -----------------------------------------------------------------------------
 # Geração do CSV de instâncias
 # -----------------------------------------------------------------------------
+
 
 def collect_instances(trusted_dir: Path) -> list[dict]:
     """
@@ -93,14 +105,16 @@ def collect_instances(trusted_dir: Path) -> list[dict]:
 
         for machine in data.get("machines", []):
             m_id = machine["machine_id"]
-            rows.append({
-                "date": date_iso,
-                "status": status,
-                "machine_id": m_id,
-                "machine_name": machine["machine_name"],
-                "job_capacity": machine["job_capacity"],
-                "count_jobs": jobs_per_machine.get(m_id, 0),
-            })
+            rows.append(
+                {
+                    "date": date_iso,
+                    "status": status,
+                    "machine_id": m_id,
+                    "machine_name": machine["machine_name"],
+                    "job_capacity": machine["job_capacity"],
+                    "count_jobs": jobs_per_machine.get(m_id, 0),
+                }
+            )
     return rows
 
 
@@ -110,8 +124,12 @@ def write_instances_csv(rows: list[dict], path: Path) -> None:
         writer = csv.DictWriter(
             f,
             fieldnames=[
-                "date", "status", "machine_id", "machine_name",
-                "job_capacity", "count_jobs",
+                "date",
+                "status",
+                "machine_id",
+                "machine_name",
+                "job_capacity",
+                "count_jobs",
             ],
         )
         writer.writeheader()
@@ -120,8 +138,58 @@ def write_instances_csv(rows: list[dict], path: Path) -> None:
 
 
 # -----------------------------------------------------------------------------
+# Geração do run_config.json
+# -----------------------------------------------------------------------------
+
+
+def generate_run_config(
+    instances_csv: Path,
+    out_path: Path,
+    min_jobs: int = MIN_JOBS_DEFAULT,
+    max_jobs: int = MAX_JOBS_DEFAULT,
+) -> None:
+    """
+    Lê instances.csv e gera run_config.json agrupando por dt todas as instâncias
+    com min_jobs <= count_jobs <= max_jobs. Para cada dt, consolida os status e máquinas únicos.
+    """
+    import csv as _csv
+
+    # Agrupa por (date, status) → set de machine_names
+    groups: dict[str, dict[str, set[str]]] = {}
+
+    with open(instances_csv, encoding="utf-8") as f:
+        for row in _csv.DictReader(f):
+            count = int(row["count_jobs"])
+            if count < min_jobs or count > max_jobs:
+                continue
+            dt = row["date"]
+            status = row["status"]
+            machine = row["machine_name"]
+            groups.setdefault(dt, {}).setdefault(status, set()).add(machine)
+
+    # Monta estrutura final: {dt: {only_status: [...], machines: [...]}}
+    config: dict = {}
+    for dt in sorted(groups):
+        statuses = sorted(groups[dt].keys())
+        machines = sorted({m for machines in groups[dt].values() for m in machines})
+        config[dt] = {
+            "only_status": statuses,
+            "machines": machines,
+        }
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(config, f, indent=2, ensure_ascii=False)
+
+    total = sum(len(v["only_status"]) for v in config.values())
+    print(f"\nrun_config.json gerado: {out_path}")
+    print(f"  {len(config)} datas | {total} lotes com {min_jobs} <= jobs <= {max_jobs}")
+
+
+# -----------------------------------------------------------------------------
 # Orquestração principal
 # -----------------------------------------------------------------------------
+
 
 def main() -> None:
     batches = discover_batches(RAW_DIR)
@@ -155,6 +223,10 @@ def main() -> None:
             )
     else:
         print("\nNenhum input.json encontrado.")
+        return
+
+    # Gera run_config.json com instâncias >= MIN_JOBS_DEFAULT jobs
+    generate_run_config(INSTANCES_CSV, RUN_CONFIG_JSON)
 
 
 if __name__ == "__main__":

@@ -284,7 +284,7 @@ class TimeIndex:
         print(f"{self.objective_type}: {self.objective_value}")
 
 
-def main(data_input_path: Path, data_output_path: Path):
+def main(data_input_path: Path, data_output_path: Path, only_machines: list[str] | None = None):
     with open(data_input_path, "r") as f:
         data = json.load(f)
 
@@ -298,14 +298,8 @@ def main(data_input_path: Path, data_output_path: Path):
     for machine in machines:
         machine_id = machine["machine_id"]
         machine_name = machine["machine_name"]
-        # if machine_name == "pepset_carrossel":
-        #    continue
-        # print(machine_name)
-        # if machine_name != "coldboxgasado_coldbox4":
-        #    continue
-        # if machine_name != "pepset_chao":
-        #    continue
-        if machine_name != "coldboxsoprado_sopradora":
+
+        if only_machines and machine_name not in only_machines:
             continue
 
         jobs_machine = [
@@ -362,6 +356,12 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Lista de status a processar. Se omitido, processa todos.",
     )
+    parser.add_argument(
+        "--only-machines",
+        nargs="+",
+        default=None,
+        help="Lista de nomes de máquinas a otimizar. Se omitido, otimiza todas.",
+    )
     return parser.parse_args()
 
 
@@ -398,4 +398,8 @@ if __name__ == "__main__":
             print(f"[AVISO] input.json não encontrado: {data_input_path}")
             continue
         print(f"\n=== Otimizando {date_slug}/{status} ===")
-        main(data_input_path=data_input_path, data_output_path=data_output_path)
+        main(
+            data_input_path=data_input_path,
+            data_output_path=data_output_path,
+            only_machines=args.only_machines,
+        )
