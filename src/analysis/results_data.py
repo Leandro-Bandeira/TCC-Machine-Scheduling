@@ -16,6 +16,7 @@ FIELDNAMES = [
     "dt",
     "status",
     "machine_name",
+    "count_jobs",
     "sum_completion_time",
     "count_jobs_not_allocated",
     "solve_time_seconds",
@@ -56,6 +57,11 @@ def collect_results(trusted_dir: Path) -> list[dict]:
             for m in input_data.get("machines", [])
         }
 
+        jobs_per_machine: dict[int, int] = {}
+        for job in input_data.get("jobs", []):
+            m_id = job["assigned_machine_id"]
+            jobs_per_machine[m_id] = jobs_per_machine.get(m_id, 0) + 1
+
         for mach in output_data.get("machines_scheduling", []):
             m_id = mach["machine_id"]
             info = machine_info.get(m_id, {})
@@ -64,6 +70,7 @@ def collect_results(trusted_dir: Path) -> list[dict]:
                 "dt": dt,
                 "status": status,
                 "machine_name": info.get("machine_name", f"machine_{m_id}"),
+                "count_jobs": jobs_per_machine.get(m_id, 0),
                 "sum_completion_time": mach.get("sum_completion_time"),
                 "count_jobs_not_allocated": mach.get("count_jobs_not_allocated"),
                 "solve_time_seconds": mach.get("solve_time_seconds"),
@@ -88,6 +95,7 @@ def main() -> None:
         print("Nenhum output.json encontrado.")
         return
 
+    rows.sort(key=lambda r: r["count_jobs"], reverse=True)
     write_results_csv(rows, RESULTS_CSV)
 
     print("\nResumo:")

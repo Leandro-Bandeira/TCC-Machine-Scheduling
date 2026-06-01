@@ -18,7 +18,8 @@ INSTANCES_CSV = BASE_DIR / "data" / "instances.csv"
 RUN_CONFIG_JSON = BASE_DIR / "run_config.json"
 
 MIN_JOBS_DEFAULT = 10
-MAX_JOBS_DEFAULT = 40
+MAX_JOBS_DEFAULT = 20
+SKIP_EXISTING_OUTPUT = True  # True: ignora dt/status que já têm output.json
 
 PYTHON = sys.executable
 
@@ -142,40 +143,53 @@ def write_instances_csv(rows: list[dict], path: Path) -> None:
 # -----------------------------------------------------------------------------
 
 
+def _has_output(dt: str, status: str, trusted_dir: Path = TRUSTED_DIR) -> bool:
+    """Verifica se output.json já existe para o par (dt, status)."""
+    from datetime import datetime as _dt
+
+    date_slug = _dt.strptime(dt, "%Y-%m-%d").strftime("%d%m%Y")
+    return (trusted_dir / date_slug / status / "output.json").exists()
+
+
 def generate_run_config(
     instances_csv: Path,
     out_path: Path,
     min_jobs: int = MIN_JOBS_DEFAULT,
     max_jobs: int = MAX_JOBS_DEFAULT,
+    skip_existing: bool = SKIP_EXISTING_OUTPUT,
 ) -> None:
     """
-    Lê instances.csv e gera run_config.json agrupando por dt todas as instâncias
-    com min_jobs <= count_jobs <= max_jobs. Para cada dt, consolida os status e máquinas únicos.
+    Lê instances.csv e gera run_config.json com instâncias min_jobs <= count_jobs <= max_jobs.
+    skip_existing=True: ignora pares (dt, status) que já têm output.json.
+    Ordena dt pelo total de jobs (menor → maior).
     """
     import csv as _csv
 
-    # Agrupa por (date, status) → set de machine_names
+    # Agrupa: dt → status → set[machine_name], acumula total de jobs por dt
     groups: dict[str, dict[str, set[str]]] = {}
+    dt_total_jobs: dict[str, int] = {}
+    skipped = 0
 
     with open(instances_csv, encoding="utf-8") as f:
         for row in _csv.DictReader(f):
             count = int(row["count_jobs"])
             if count < min_jobs or count > max_jobs:
                 continue
-            dt = row["date"]
-            status = row["status"]
-            machine = row["machine_name"]
+            dt, status, machine = row["date"], row["status"], row["machine_name"]
+            if skip_existing and _has_output(dt, status):
+                skipped += 1
+                continue
             groups.setdefault(dt, {}).setdefault(status, set()).add(machine)
+            dt_total_jobs[dt] = dt_total_jobs.get(dt, 0) + count
 
-    # Monta estrutura final: {dt: {only_status: [...], machines: [...]}}
+    # Ordena dt por total de jobs acumulado (menor → maior)
+    sorted_dts = sorted(groups, key=lambda d: dt_total_jobs[d])
+
     config: dict = {}
-    for dt in sorted(groups):
+    for dt in sorted_dts:
         statuses = sorted(groups[dt].keys())
-        machines = sorted({m for machines in groups[dt].values() for m in machines})
-        config[dt] = {
-            "only_status": statuses,
-            "machines": machines,
-        }
+        machines = sorted({m for ms in groups[dt].values() for m in ms})
+        config[dt] = {"only_status": statuses, "machines": machines}
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with open(out_path, "w", encoding="utf-8") as f:
@@ -183,7 +197,9 @@ def generate_run_config(
 
     total = sum(len(v["only_status"]) for v in config.values())
     print(f"\nrun_config.json gerado: {out_path}")
-    print(f"  {len(config)} datas | {total} lotes com {min_jobs} <= jobs <= {max_jobs}")
+    print(f"  {len(config)} datas | {total} lotes | {min_jobs} <= jobs <= {max_jobs}")
+    if skip_existing and skipped:
+        print(f"  {skipped} linhas ignoradas (output.json já existe)")
 
 
 # -----------------------------------------------------------------------------
