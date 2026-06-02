@@ -11,15 +11,18 @@ if [ ! -f "$CONFIG" ]; then
   exit 1
 fi
 
-# Itera sobre cada dt definido no JSON
-python3 -c "
-import json, sys
+TOTAL=$(python3 -c "
+import json
 d = json.load(open('$CONFIG'))
-for dt, cfg in d.items():
-    statuses = cfg.get('only_status', [])
-    machines = cfg.get('machines', [])
-    print(dt + '|' + ' '.join(statuses) + '|' + ' '.join(machines))
-" | while IFS='|' read -r DT STATUSES MACHINES; do
+print(sum(len(cfg.get('only_status', [])) for cfg in d.values()))
+")
+
+CURRENT=0
+
+while IFS='|' read -r DT STATUSES MACHINES; do
+
+  CURRENT=$((CURRENT + 1))
+  PCT=$((CURRENT * 100 / TOTAL))
 
   ONLY_STATUS_ARG=""
   if [ -n "$STATUSES" ]; then
@@ -33,6 +36,7 @@ for dt, cfg in d.items():
 
   echo ""
   echo "=========================================="
+  echo "  [$CURRENT/$TOTAL - $PCT%]"
   echo "  dt       : $DT"
   echo "  status   : ${STATUSES:-todos}"
   echo "  machines : ${MACHINES:-todas}"
@@ -51,11 +55,18 @@ for dt, cfg in d.items():
   python3 src/main/data_output_process.py --dt "$DT" $ONLY_STATUS_ARG
 
   echo ""
-  echo "  Concluído: $DT"
+  echo "  Concluído: $DT [$CURRENT/$TOTAL]"
 
-done
+done < <(python3 -c "
+import json
+d = json.load(open('$CONFIG'))
+for dt, cfg in d.items():
+    statuses = cfg.get('only_status', [])
+    machines = cfg.get('machines', [])
+    print(dt + '|' + ' '.join(statuses) + '|' + ' '.join(machines))
+")
 
 echo ""
 echo "=========================================="
-echo "  Pipeline finalizado."
+echo "  Pipeline finalizado. [$TOTAL/$TOTAL - 100%]"
 echo "=========================================="
