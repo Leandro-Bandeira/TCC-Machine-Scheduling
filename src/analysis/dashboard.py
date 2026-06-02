@@ -232,12 +232,17 @@ def create_hover_label(row):
             f"Fim: {row['fim'].strftime('%H:%M')}<br>"
         )
     else:
+        deadline = row.get("deadline")
+        not_before = row.get("not_before_date")
+        deadline_str = pd.Timestamp(deadline).strftime("%d/%m %H:%M") if pd.notna(deadline) else "-"
+        not_before_str = pd.Timestamp(not_before).strftime("%d/%m %H:%M") if pd.notna(not_before) else "-"
         return (
             f"Máquina: {row['maquina']}<br>"
             f"Op: {int(row.get('order_id') or 0)}<br>"
-            f"Caixa: {row.get('caixa', '')}<br>"
-            f"Início: {row['inicio'].strftime('%H:%M')}<br>"
-            f"Fim: {row['fim'].strftime('%H:%M')}<br>"
+            f"Início: {row['inicio'].strftime('%d/%m %H:%M')}<br>"
+            f"Fim: {row['fim'].strftime('%d/%m %H:%M')}<br>"
+            f"Not before: {not_before_str}<br>"
+            f"Due date: {deadline_str}<br>"
             f"_kf_macho: {row.get('resource_id', '')}<br>"
         )
 
