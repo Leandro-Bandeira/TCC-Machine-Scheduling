@@ -98,7 +98,6 @@ def collect_instances(trusted_dir: Path) -> list[dict]:
         with open(input_file, encoding="utf-8") as f:
             data = json.load(f)
 
-        # Conta jobs por machine_id
         jobs_per_machine: dict[int, int] = {}
         for job in data.get("jobs", []):
             m_id = job["assigned_machine_id"]
@@ -165,7 +164,6 @@ def generate_run_config(
     """
     import csv as _csv
 
-    # Agrupa: dt → status → set[machine_name], acumula total de jobs por dt
     groups: dict[str, dict[str, set[str]]] = {}
     dt_total_jobs: dict[str, int] = {}
     skipped = 0
@@ -199,7 +197,7 @@ def generate_run_config(
     print(f"\nrun_config.json gerado: {out_path}")
     print(f"  {len(config)} datas | {total} lotes | {min_jobs} <= jobs <= {max_jobs}")
     if skip_existing and skipped:
-        print(f"  {skipped} linhas ignoradas (output.json já existe)")
+        print(f"  {skipped} lotes ignorados (output.json já existe)")
 
 
 # -----------------------------------------------------------------------------
@@ -241,7 +239,6 @@ def main() -> None:
         print("\nNenhum input.json encontrado.")
         return
 
-    # Gera run_config.json com instâncias >= MIN_JOBS_DEFAULT jobs
     generate_run_config(INSTANCES_CSV, RUN_CONFIG_JSON)
 
 
