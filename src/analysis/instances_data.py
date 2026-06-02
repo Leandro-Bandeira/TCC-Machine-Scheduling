@@ -100,6 +100,8 @@ def collect_instances(trusted_dir: Path) -> list[dict]:
 
         jobs_per_machine: dict[int, int] = {}
         for job in data.get("jobs", []):
+            if job.get("Status_Processed", "") != "":
+                continue
             m_id = job["assigned_machine_id"]
             jobs_per_machine[m_id] = jobs_per_machine.get(m_id, 0) + 1
 
