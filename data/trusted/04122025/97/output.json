@@ -1,0 +1,60 @@
+{
+  "machines_scheduling": [
+    {
+      "machine_id": 5,
+      "sum_completion_time": 2168.9999999998454,
+      "count_jobs_not_allocated": 0.0,
+      "solve_time_seconds": 8.065,
+      "jobs": [
+        {
+          "job_id": 226,
+          "start": 174,
+          "end": 185,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 227,
+          "start": 200,
+          "end": 211,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 232,
+          "start": 162,
+          "end": 173,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 233,
+          "start": 225,
+          "end": 236,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 238,
+          "start": 186,
+          "end": 197,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 239,
+          "start": 212,
+          "end": 223,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 244,
+          "start": 464,
+          "end": 475,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 245,
+          "start": 450,
+          "end": 461,
+          "sub_machine": 0
+        }
+      ]
+    }
+  ]
+}

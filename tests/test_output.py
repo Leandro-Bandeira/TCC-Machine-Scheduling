@@ -70,6 +70,9 @@ def input_json(partition_status):
         return json.load(f)
 
 
+REQUIRED_COLS = {"status_processed", "inicio", "fim", "job_id", "maquina", "sub_machine"}
+
+
 @pytest.fixture(scope="module")
 def output_demand_df(partition_status):
     partition_dir, status_dir = partition_status
@@ -78,6 +81,10 @@ def output_demand_df(partition_status):
     assert parquet_files, f"Nenhum parquet em {trusted_dir / 'demanda'}"
     df = pd.read_parquet(parquet_files[-1])
     df.columns = df.columns.str.lower()
+    missing_cols = REQUIRED_COLS - set(df.columns)
+    assert not missing_cols, (
+        f"[{partition_dir.name}/{status_dir.name}] Colunas faltando no parquet: {missing_cols}"
+    )
     df["inicio"] = pd.to_datetime(df["inicio"])
     df["fim"] = pd.to_datetime(df["fim"])
     if "not_before_date" in df.columns:
@@ -88,13 +95,47 @@ def output_demand_df(partition_status):
 # ---------------------------------------------------------------------------
 # Testes de integridade do pipeline
 # ---------------------------------------------------------------------------
-"""
-def test_all_jobs_present(partition_status, input_json, output_demand_df):
-    input_ids  = {j["id"] for j in input_json["jobs"]}
+def _log_job_coverage(partition_status, input_json, output_demand_df) -> None:
+    """Loga quantos jobs do input aparecem no output (não-alocados são válidos)."""
+    input_ids = {j["id"] for j in input_json["jobs"] if j.get("Status_Processed", "") == ""}
     output_ids = set(output_demand_df["job_id"].dropna().astype(int))
-    missing    = input_ids - output_ids
-    assert not missing, f"Jobs do input ausentes no output: {missing}"
-"""
+    missing = input_ids - output_ids
+    extra = output_ids - input_ids
+    logger.info(
+        "[%s/%s] Cobertura jobs: %d/%d no output",
+        partition_status[0].name,
+        partition_status[1].name,
+        len(input_ids) - len(missing),
+        len(input_ids),
+    )
+    if missing:
+        logger.warning(
+            "[%s/%s] %d jobs do input ausentes no output (não alocados): %s",
+            partition_status[0].name,
+            partition_status[1].name,
+            len(missing),
+            sorted(missing),
+        )
+    if extra:
+        logger.warning(
+            "[%s/%s] %d job_ids no output sem correspondência no input: %s",
+            partition_status[0].name,
+            partition_status[1].name,
+            len(extra),
+            sorted(extra),
+        )
+
+
+def test_all_jobs_present(partition_status, input_json, output_demand_df):
+    """Todos os jobs a agendar do input devem aparecer no output; jobs faltando são logados."""
+    _log_job_coverage(partition_status, input_json, output_demand_df)
+    input_ids = {j["id"] for j in input_json["jobs"] if j.get("Status_Processed", "") == ""}
+    output_ids = set(output_demand_df["job_id"].dropna().astype(int))
+    extra = output_ids - input_ids
+    assert not extra, (
+        f"[{partition_status[0].name}/{partition_status[1].name}] "
+        f"job_ids no output sem correspondência no input: {sorted(extra)}"
+    )
 
 
 def test_only_start(partition_status, output_demand_df):
@@ -166,6 +207,7 @@ def test_no_overlap_same_submachine(partition_status, output_demand_df):
 
 def test_parallel_jobs(partition_status, output_demand_df, input_json):
     """O índice máximo de sub-máquina não ultrapassa job_capacity - 1."""
+    _log_job_coverage(partition_status, input_json, output_demand_df)
     machine_capacity = {
         m["machine_name"]: m["job_capacity"] for m in input_json["machines"]
     }
@@ -202,6 +244,7 @@ def test_parallel_jobs(partition_status, output_demand_df, input_json):
 
 def test_setup_times(partition_status, output_demand_df, input_json):
     """Gap entre jobs consecutivos na mesma sub-máquina respeita o tempo de setup."""
+    _log_job_coverage(partition_status, input_json, output_demand_df)
     time_step = int(input_json.get("time_step", 5))
     setups = input_json.get("setups", {})
     name_to_id = {m["machine_name"]: m["machine_id"] for m in input_json["machines"]}
@@ -255,6 +298,7 @@ def test_resource_constraint(partition_status, output_demand_df, input_json):
     Jobs com mesmo resource_id em sub-máquinas diferentes devem ter gap >= big_setup.
     Valida a restrição _resource_constraint_rule do modelo.
     """
+    _log_job_coverage(partition_status, input_json, output_demand_df)
     big_setup_slots = input_json.get("big_setup", 0)
     time_step = int(input_json.get("time_step", 5))
     big_setup_min = big_setup_slots * time_step

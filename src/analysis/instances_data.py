@@ -17,9 +17,9 @@ SCRIPTS_DIR = BASE_DIR / "src" / "main"
 INSTANCES_CSV = BASE_DIR / "data" / "instances.csv"
 RUN_CONFIG_JSON = BASE_DIR / "run_config.json"
 
-MIN_JOBS_DEFAULT = 10
+MIN_JOBS_DEFAULT = 5
 MAX_JOBS_DEFAULT = 20
-SKIP_EXISTING_OUTPUT = True  # True: ignora dt/status que já têm output.json
+SKIP_EXISTING_OUTPUT = False  # True: ignora dt/status que já têm output.json
 
 PYTHON = sys.executable
 

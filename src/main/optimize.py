@@ -284,7 +284,11 @@ class TimeIndex:
         print(f"{self.objective_type}: {self.objective_value}")
 
 
-def main(data_input_path: Path, data_output_path: Path, only_machines: list[str] | None = None):
+def main(
+    data_input_path: Path,
+    data_output_path: Path,
+    only_machines: list[str] | None = None,
+):
     with open(data_input_path, "r") as f:
         data = json.load(f)
 
