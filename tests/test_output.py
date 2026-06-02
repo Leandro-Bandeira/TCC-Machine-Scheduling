@@ -46,7 +46,9 @@ def _partitions() -> list[tuple]:
         # Filtra por run_config se disponível
         if RUN_CONFIG:
             try:
-                date_iso = datetime.strptime(partition_dir.name, "%d%m%Y").strftime("%Y-%m-%d")
+                date_iso = datetime.strptime(partition_dir.name, "%d%m%Y").strftime(
+                    "%Y-%m-%d"
+                )
             except ValueError:
                 continue
             if date_iso not in RUN_CONFIG:
@@ -111,7 +113,14 @@ def input_json(partition_status):
         return json.load(f)
 
 
-REQUIRED_COLS = {"status_processed", "inicio", "fim", "job_id", "maquina", "sub_machine"}
+REQUIRED_COLS = {
+    "status_processed",
+    "inicio",
+    "fim",
+    "job_id",
+    "maquina",
+    "sub_machine",
+}
 
 
 @pytest.fixture(scope="module")
@@ -130,6 +139,7 @@ def output_demand_df(partition_status, allowed_machines):
     df["fim"] = pd.to_datetime(df["fim"])
     if "not_before_date" in df.columns:
         df["not_before_date"] = pd.to_datetime(df["not_before_date"])
+    print(allowed_machines)
     if allowed_machines:
         df = df[df["maquina"].isin(allowed_machines)]
     return df
@@ -139,7 +149,10 @@ def output_demand_df(partition_status, allowed_machines):
 # Testes de integridade do pipeline
 # ---------------------------------------------------------------------------
 def _log_job_coverage(
-    partition_status, input_json, output_demand_df, allowed_machines: set[str] | None = None
+    partition_status,
+    input_json,
+    output_demand_df,
+    allowed_machines: set[str] | None = None,
 ) -> None:
     """Loga quantos jobs do input aparecem no output (não-alocados são válidos)."""
     if allowed_machines:
@@ -151,10 +164,13 @@ def _log_job_coverage(
         input_ids = {
             j["id"]
             for j in input_json["jobs"]
-            if j.get("Status_Processed", "") == "" and j["assigned_machine_id"] in allowed_ids
+            if j.get("Status_Processed", "") == ""
+            and j["assigned_machine_id"] in allowed_ids
         }
     else:
-        input_ids = {j["id"] for j in input_json["jobs"] if j.get("Status_Processed", "") == ""}
+        input_ids = {
+            j["id"] for j in input_json["jobs"] if j.get("Status_Processed", "") == ""
+        }
 
     output_ids = set(output_demand_df["job_id"].dropna().astype(int))
     missing = input_ids - output_ids
@@ -184,7 +200,9 @@ def _log_job_coverage(
         )
 
 
-def test_all_jobs_present(partition_status, input_json, output_demand_df, allowed_machines):
+def test_all_jobs_present(
+    partition_status, input_json, output_demand_df, allowed_machines
+):
     """Todos os jobs a agendar do input devem aparecer no output; jobs faltando são logados."""
     _log_job_coverage(partition_status, input_json, output_demand_df, allowed_machines)
     if allowed_machines:
@@ -196,10 +214,13 @@ def test_all_jobs_present(partition_status, input_json, output_demand_df, allowe
         input_ids = {
             j["id"]
             for j in input_json["jobs"]
-            if j.get("Status_Processed", "") == "" and j["assigned_machine_id"] in allowed_ids
+            if j.get("Status_Processed", "") == ""
+            and j["assigned_machine_id"] in allowed_ids
         }
     else:
-        input_ids = {j["id"] for j in input_json["jobs"] if j.get("Status_Processed", "") == ""}
+        input_ids = {
+            j["id"] for j in input_json["jobs"] if j.get("Status_Processed", "") == ""
+        }
     output_ids = set(output_demand_df["job_id"].dropna().astype(int))
     extra = output_ids - input_ids
     assert not extra, (
@@ -275,7 +296,9 @@ def test_no_overlap_same_submachine(partition_status, output_demand_df):
     assert not violations, "Sobreposições detectadas:\n" + "\n".join(violations)
 
 
-def test_parallel_jobs(partition_status, output_demand_df, input_json, allowed_machines):
+def test_parallel_jobs(
+    partition_status, output_demand_df, input_json, allowed_machines
+):
     """O índice máximo de sub-máquina não ultrapassa job_capacity - 1."""
     _log_job_coverage(partition_status, input_json, output_demand_df, allowed_machines)
     machine_capacity = {
@@ -363,7 +386,9 @@ def test_setup_times(partition_status, output_demand_df, input_json, allowed_mac
     assert not violations, "Setup insuficiente:\n" + "\n".join(violations)
 
 
-def test_resource_constraint(partition_status, output_demand_df, input_json, allowed_machines):
+def test_resource_constraint(
+    partition_status, output_demand_df, input_json, allowed_machines
+):
     """
     Jobs com mesmo resource_id em sub-máquinas diferentes devem ter gap >= big_setup.
     Valida a restrição _resource_constraint_rule do modelo.
