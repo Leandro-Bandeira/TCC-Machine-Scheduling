@@ -14,7 +14,23 @@ src/
   analysis/    ← ferramentas de análise e visualização (independentes do otimizador)
     dashboard.py
     instances_data.py
+    results_data.py
+tests/
+  test_output.py
 ```
+
+## Função de cada arquivo
+
+| Arquivo | Função |
+|---|---|
+| `src/main/entities.py` | Data classes `Job` e `Machine` usadas pelo otimizador |
+| `src/main/data_input_process.py` | Lê demanda de `data/raw/`, valida jobs, calcula slots de tempo e setups, gera `input.json` em `data/trusted/` |
+| `src/main/optimize.py` | Lê `input.json`, constrói e resolve o modelo Time-Index (Pyomo + HiGHS) por máquina, gera `output.json` |
+| `src/main/data_output_process.py` | Lê `input.json` + `output.json`, converte slots para datetime, escreve `result.parquet`/`.csv` em `data/trusted/` e `data/latest/` |
+| `src/analysis/dashboard.py` | Dashboard Streamlit interativo: Gantt semanal e por dia, setups, indisponibilidades e delays |
+| `src/analysis/instances_data.py` | Varre `data/raw/`, executa `data_input_process.py` para cada data, gera `data/instances.csv` com contagem de jobs por máquina e `run_config.json` filtrado por intervalo de jobs |
+| `src/analysis/results_data.py` | Coleta todos os `output.json` em `data/trusted/`, cruza com `input.json` e gera `data/results.csv` consolidado |
+| `tests/test_output.py` | Valida o output do otimizador: cobertura de jobs, sem sobreposição, respeitado not_before_date, setup times e resource constraint |
 
 ## Estrutura do pipeline
 
@@ -23,6 +39,46 @@ data_input_process.py  →  optimize.py  →  data_output_process.py
       input.json              output.json       result.parquet / .csv
                                                 data/latest/<status>/
 ```
+
+---
+
+## Testes
+
+Os testes em `tests/test_output.py` validam automaticamente os resultados do otimizador para os pares `(data, status)` definidos em `run_config.json`.
+
+### Executar todos os testes
+
+```bash
+pytest tests/test_output.py -v -s
+```
+
+### Executar com logs visíveis
+
+```bash
+# Mostrar INFO e acima
+pytest tests/test_output.py -v -s --log-cli-level=INFO
+
+# Mostrar apenas WARNING e acima
+pytest tests/test_output.py -v -s --log-cli-level=WARNING
+```
+
+### Limitar o número de pares testados
+
+```bash
+MAX_PAIRS=2 pytest tests/test_output.py -v -s
+```
+
+### O que é validado
+
+| Teste | Validação |
+|---|---|
+| `test_all_jobs_present` | Nenhum `job_id` no output sem correspondência no input |
+| `test_only_start` | Jobs agendados têm `inicio` preenchido |
+| `test_not_before_date` | Nenhum job inicia antes do `not_before_date` |
+| `test_no_overlap_same_submachine` | Sem sobreposição na mesma `(maquina, sub_machine)` |
+| `test_parallel_jobs` | `sub_machine` máxima < `job_capacity` da máquina |
+| `test_setup_times` | Gap entre jobs consecutivos >= tempo de setup do `input.json` |
+| `test_resource_constraint` | Jobs com mesmo `resource_id` em sub-máquinas diferentes têm gap >= `big_setup` |
 
 ---
 

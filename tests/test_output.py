@@ -375,7 +375,7 @@ def test_setup_times(partition_status, output_demand_df, input_json, allowed_mac
                 )
                 setup_min = setup_slots * time_step
                 gap_min = (job_b["inicio"] - job_a["fim"]).total_seconds() / 60
-
+                print(f"gap_min={gap_min:.1f}min setup_min={setup_min}min")
                 if gap_min < setup_min:
                     violations.append(
                         f"maq={machine_name} sub={sub_machine}: "
@@ -430,6 +430,9 @@ def test_resource_constraint(
                         else (job_b, job_a)
                     )
                     gap_min = (later["inicio"] - earlier["fim"]).total_seconds() / 60
+                    print(
+                        f"resource={int(resource_id)} sub={int(earlier['sub_machine'])}→{int(later['sub_machine'])}: gap={gap_min:.1f}min big_setup={big_setup_min}min"
+                    )
                     if gap_min < big_setup_min:
                         violations.append(
                             f"maq={machine} resource={resource_id} "
