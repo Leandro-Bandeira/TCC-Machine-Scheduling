@@ -374,13 +374,12 @@ def process_setups(
             if start_next <= end_prev:
                 continue
 
-            inside_shift = is_within_shift(
-                end_prev, start_next, a["maquina"], shifts_df, machines_df
-            )
-            if not inside_shift:
-                continue
-
             if setup_min <= 0:
+                inside_shift = is_within_shift(
+                    end_prev, start_next, a["maquina"], shifts_df, machines_df
+                )
+                if not inside_shift:
+                    continue
                 setup_min = int((start_next - end_prev).total_seconds() / 60)
 
             start = start_next - timedelta(minutes=setup_min)
@@ -389,6 +388,7 @@ def process_setups(
 
             rows.append({
                 "maquina": a["maquina"],
+                "sub_machine": a["sub_machine"],
                 "inicio": start,
                 "fim": end,
                 "machine_y": a["machine_y"],
