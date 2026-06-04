@@ -214,13 +214,10 @@ def test_all_jobs_present(
         input_ids = {
             j["id"]
             for j in input_json["jobs"]
-            if j.get("Status_Processed", "") == ""
-            and j["assigned_machine_id"] in allowed_ids
+            if j["assigned_machine_id"] in allowed_ids
         }
     else:
-        input_ids = {
-            j["id"] for j in input_json["jobs"] if j.get("Status_Processed", "") == ""
-        }
+        input_ids = {j["id"] for j in input_json["jobs"]}
     output_ids = set(output_demand_df["job_id"].dropna().astype(int))
     extra = output_ids - input_ids
     assert not extra, (
