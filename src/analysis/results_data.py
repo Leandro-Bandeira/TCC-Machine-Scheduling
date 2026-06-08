@@ -3,6 +3,7 @@ Lê todos os output.json em data/trusted/ e gera data/results.csv com
 uma linha por máquina otimizada, cruzando com input.json para obter
 o nome da máquina e a quantidade de sub-máquinas.
 """
+
 import csv
 import json
 from datetime import datetime
@@ -53,10 +54,7 @@ def collect_results(trusted_dir: Path) -> list[dict]:
             output_data = json.load(f)
 
         # machine_id → {machine_name, job_capacity}
-        machine_info = {
-            m["machine_id"]: m
-            for m in input_data.get("machines", [])
-        }
+        machine_info = {m["machine_id"]: m for m in input_data.get("machines", [])}
 
         jobs_per_machine: dict[int, int] = {}
         for job in input_data.get("jobs", []):
@@ -67,17 +65,19 @@ def collect_results(trusted_dir: Path) -> list[dict]:
             m_id = mach["machine_id"]
             info = machine_info.get(m_id, {})
 
-            rows.append({
-                "dt": dt,
-                "status": status,
-                "machine_name": info.get("machine_name", f"machine_{m_id}"),
-                "count_jobs": jobs_per_machine.get(m_id, 0),
-                "sum_completion_time": mach.get("sum_completion_time"),
-                "count_jobs_not_allocated": mach.get("count_jobs_not_allocated"),
-                "solve_time_seconds": mach.get("solve_time_seconds"),
-                "termination_condition": mach.get("termination_condition"),
-                "count_machines": info.get("job_capacity"),
-            })
+            rows.append(
+                {
+                    "dt": dt,
+                    "status": status,
+                    "machine_name": info.get("machine_name", f"machine_{m_id}"),
+                    "count_jobs": jobs_per_machine.get(m_id, 0),
+                    "sum_completion_time": mach.get("sum_completion_time"),
+                    "count_jobs_not_allocated": mach.get("count_jobs_not_allocated"),
+                    "solve_time_seconds": mach.get("solve_time_seconds"),
+                    "termination_condition": mach.get("termination_condition"),
+                    "count_machines": info.get("job_capacity"),
+                }
+            )
 
     return rows
 
