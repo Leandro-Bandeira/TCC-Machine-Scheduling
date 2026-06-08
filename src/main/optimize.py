@@ -185,6 +185,7 @@ class TimeIndex:
                     self.objective_type: self.objective_value,
                     "count_jobs_not_allocated": count_jobs_not_allocated,
                     "solve_time_seconds": round(self.solve_time, 3),
+                    "termination_condition": self.termination_condition,
                     "jobs": scheduled_jobs,
                 }
             ]
@@ -275,6 +276,7 @@ class TimeIndex:
         _t0 = perf_counter()
         result = solver.solve(model, tee=True)
         self.solve_time = perf_counter() - _t0
+        self.termination_condition = str(result.solver.termination_condition)
         if self.objective_type == "c_max":
             self.objective_value = pyo.value(model.C_max)
         else:

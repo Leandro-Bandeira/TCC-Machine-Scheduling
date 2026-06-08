@@ -20,6 +20,7 @@ FIELDNAMES = [
     "sum_completion_time",
     "count_jobs_not_allocated",
     "solve_time_seconds",
+    "termination_condition",
     "count_machines",
 ]
 
@@ -74,6 +75,7 @@ def collect_results(trusted_dir: Path) -> list[dict]:
                 "sum_completion_time": mach.get("sum_completion_time"),
                 "count_jobs_not_allocated": mach.get("count_jobs_not_allocated"),
                 "solve_time_seconds": mach.get("solve_time_seconds"),
+                "termination_condition": mach.get("termination_condition"),
                 "count_machines": info.get("job_capacity"),
             })
 
