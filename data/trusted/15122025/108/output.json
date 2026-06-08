@@ -1,0 +1,199 @@
+{
+  "machines_scheduling": [
+    {
+      "machine_id": 0,
+      "sum_completion_time": 339.0,
+      "count_jobs_not_allocated": 0.0,
+      "solve_time_seconds": 186.62,
+      "termination_condition": "optimal",
+      "jobs": [
+        {
+          "job_id": 0,
+          "start": 48,
+          "end": 52,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 1,
+          "start": 62,
+          "end": 79,
+          "sub_machine": 1
+        },
+        {
+          "job_id": 2,
+          "start": 54,
+          "end": 62,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 3,
+          "start": 64,
+          "end": 81,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 5,
+          "start": 48,
+          "end": 60,
+          "sub_machine": 1
+        }
+      ]
+    },
+    {
+      "machine_id": 2,
+      "sum_completion_time": 424.9999999999995,
+      "count_jobs_not_allocated": 0.0,
+      "solve_time_seconds": 57.91,
+      "termination_condition": "optimal",
+      "jobs": [
+        {
+          "job_id": 4,
+          "start": 48,
+          "end": 50,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 7,
+          "start": 74,
+          "end": 81,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 9,
+          "start": 66,
+          "end": 73,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 20,
+          "start": 59,
+          "end": 64,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 25,
+          "start": 52,
+          "end": 57,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 28,
+          "start": 83,
+          "end": 94,
+          "sub_machine": 0
+        }
+      ]
+    },
+    {
+      "machine_id": 3,
+      "sum_completion_time": 1330.0,
+      "count_jobs_not_allocated": 0.0,
+      "solve_time_seconds": 1955.737,
+      "termination_condition": "optimal",
+      "jobs": [
+        {
+          "job_id": 6,
+          "start": 107,
+          "end": 145,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 8,
+          "start": 146,
+          "end": 186,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 10,
+          "start": 61,
+          "end": 64,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 11,
+          "start": 98,
+          "end": 106,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 12,
+          "start": 80,
+          "end": 88,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 13,
+          "start": 65,
+          "end": 68,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 14,
+          "start": 89,
+          "end": 97,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 15,
+          "start": 71,
+          "end": 79,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 17,
+          "start": 56,
+          "end": 58,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 18,
+          "start": 55,
+          "end": 55,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 19,
+          "start": 50,
+          "end": 51,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 21,
+          "start": 48,
+          "end": 48,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 22,
+          "start": 53,
+          "end": 53,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 23,
+          "start": 52,
+          "end": 52,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 24,
+          "start": 59,
+          "end": 60,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 26,
+          "start": 49,
+          "end": 49,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 27,
+          "start": 54,
+          "end": 54,
+          "sub_machine": 0
+        }
+      ]
+    }
+  ]
+}
