@@ -271,6 +271,7 @@ class TimeIndex:
         model.write("model.lp", io_options={"symbolic_solver_labels": True})
 
         solver = pyo.SolverFactory("highs")
+        solver.options["time_limit"] = 3600
         _t0 = perf_counter()
         result = solver.solve(model, tee=True)
         self.solve_time = perf_counter() - _t0
