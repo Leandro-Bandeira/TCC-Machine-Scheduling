@@ -14,5 +14,5 @@ class ReadInstance{
 
     private:
         static std::vector<Job> parse_jobs(const json& data, const int id_machine);
-
+        static std::vector<std::vector<int>> parse_setups(const json& data, const int id_machine, const std::vector<Job>& jobs);
 };
