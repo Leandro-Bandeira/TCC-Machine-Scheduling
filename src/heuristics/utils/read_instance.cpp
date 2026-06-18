@@ -2,6 +2,7 @@
 #include <fstream>
 #include <unordered_map>
 
+/* Função estática que dado o path e o id da máquina, lê os dados do problema */
 ProblemData ReadInstance::readData(const std::string& path, const int id_machine) {
     std::ifstream file(path);
     json data = json::parse(file);
@@ -10,11 +11,16 @@ ProblemData ReadInstance::readData(const std::string& path, const int id_machine
     return ProblemData(jobs, setup_matrix);
 }
 
+/* Função privada que parseia os jobs do json */
 std::vector<Job> ReadInstance::parse_jobs(const json& data, const int id_machine) {
     std::vector<Job> jobs;
-    int idx = 0;
+    jobs.emplace_back(0, 0, 0, 0, 0);  // dummy job at idx=0
+    int idx = 1;
     for(const auto& job_data : data["jobs"]) {
         if(job_data["assigned_machine_id"].get<int>() != id_machine) {
+            continue;
+        }
+        if(job_data["Status_Processed"].get<std::string>() != "") {
             continue;
         }
         jobs.emplace_back(
