@@ -350,12 +350,17 @@ class SchedulingInputBuilder:
                         // time_step,
                     )
                 )
-                deadline_slot = int(
-                    max(
-                        0,
-                        (row["deadline"] - day_start).total_seconds() / 60 // time_step,
+                if row["deadline"].date() == day_start.date():
+                    deadline_slot = self.cfg.slots_per_day - 1
+                else:
+                    deadline_slot = int(
+                        max(
+                            0,
+                            (row["deadline"] - day_start).total_seconds()
+                            / 60
+                            // time_step,
+                        )
                     )
-                )
                 processing_slots = math.ceil(processing_minutes / time_step)
 
                 job = {

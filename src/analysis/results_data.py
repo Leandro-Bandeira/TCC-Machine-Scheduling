@@ -18,7 +18,7 @@ FIELDNAMES = [
     "status",
     "machine_name",
     "count_jobs",
-    "sum_completion_time",
+    "objective_function",
     "count_jobs_not_allocated",
     "solve_time_seconds",
     "termination_condition",
@@ -58,6 +58,8 @@ def collect_results(trusted_dir: Path) -> list[dict]:
 
         jobs_per_machine: dict[int, int] = {}
         for job in input_data.get("jobs", []):
+            if job["Status_Processed"] != "":
+                continue
             m_id = job["assigned_machine_id"]
             jobs_per_machine[m_id] = jobs_per_machine.get(m_id, 0) + 1
 
@@ -71,7 +73,7 @@ def collect_results(trusted_dir: Path) -> list[dict]:
                     "status": status,
                     "machine_name": info.get("machine_name", f"machine_{m_id}"),
                     "count_jobs": jobs_per_machine.get(m_id, 0),
-                    "sum_completion_time": mach.get("sum_completion_time"),
+                    "objective_function": mach.get("objective_function"),
                     "count_jobs_not_allocated": mach.get("count_jobs_not_allocated"),
                     "solve_time_seconds": mach.get("solve_time_seconds"),
                     "termination_condition": mach.get("termination_condition"),
@@ -104,7 +106,7 @@ def main() -> None:
     for row in rows:
         print(
             f"  {row['dt']} / status={row['status']} / {row['machine_name']}"
-            f" → sum_ct={row['sum_completion_time']}"
+            f" → objective_function={row['objective_function']}"
             f", not_alloc={row['count_jobs_not_allocated']}"
             f", solve={row['solve_time_seconds']}s"
         )

@@ -518,7 +518,9 @@ def main():
     # CONSTRUÇÃO DO DATAFRAME DE SCHEDULE
     # ============================================================
     df = schedule_df.copy()
-    df["delay"] = (df["fim"] - df["deadline"]).dt.days.fillna(0).clip(lower=0).astype(int)
+    df["delay"] = (
+        df["fim"].dt.normalize() - df["deadline"].dt.normalize()
+    ).dt.days.fillna(0).clip(lower=0).astype(int)
     df["tempo_processamento_minutos_total"] = (
         (df["fim"] - df["inicio"]).dt.total_seconds() / 60
     ).fillna(0).astype(int)
@@ -720,7 +722,7 @@ def main():
         if (
             pd.notna(row.get("deadline"))
             and pd.notna(row.get("fim"))
-            and pd.Timestamp(row["fim"]) > pd.Timestamp(row["deadline"])
+            and pd.Timestamp(row["fim"]).normalize() > pd.Timestamp(row["deadline"]).normalize()
         ):
             return "JOB_ATRASADO"
         return row["maquina"]
