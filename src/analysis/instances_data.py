@@ -13,12 +13,17 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 RAW_DIR = BASE_DIR / "data" / "raw"
 TRUSTED_DIR = BASE_DIR / "data" / "trusted"
+LATEST_DIR = BASE_DIR / "data" / "latest"
 SCRIPTS_DIR = BASE_DIR / "src" / "main"
 INSTANCES_CSV = BASE_DIR / "data" / "instances.csv"
 RUN_CONFIG_JSON = BASE_DIR / "run_config.json"
 
-MIN_JOBS_DEFAULT = 5
-MAX_JOBS_DEFAULT = 20
+# Cada tupla: (job_capacity, min_jobs, max_jobs)
+# Instâncias que não casam com nenhuma tupla são ignoradas.
+INSTANCE_FILTERS: list[tuple[int, int, int]] = [
+    (2, 5, 10),
+    (1, 4, 37),
+]
 SKIP_EXISTING_OUTPUT = False  # True: ignora dt/status que já têm output.json
 
 PYTHON = sys.executable
@@ -152,15 +157,25 @@ def _has_output(dt: str, status: str, trusted_dir: Path = TRUSTED_DIR) -> bool:
     return (trusted_dir / date_slug / status / "output.json").exists()
 
 
+def _matches_filters(
+    job_capacity: int, count_jobs: int, filters: list[tuple[int, int, int]]
+) -> bool:
+    return any(
+        job_capacity == cap and min_j <= count_jobs <= max_j
+        for cap, min_j, max_j in filters
+    )
+
+
 def generate_run_config(
     instances_csv: Path,
     out_path: Path,
-    min_jobs: int = MIN_JOBS_DEFAULT,
-    max_jobs: int = MAX_JOBS_DEFAULT,
+    filters: list[tuple[int, int, int]] = INSTANCE_FILTERS,
     skip_existing: bool = SKIP_EXISTING_OUTPUT,
 ) -> None:
     """
-    Lê instances.csv e gera run_config.json com instâncias min_jobs <= count_jobs <= max_jobs.
+    Lê instances.csv e gera run_config.json.
+    Aceita apenas instâncias que casam com alguma tupla em filters:
+      (job_capacity, min_jobs, max_jobs).
     skip_existing=True: ignora pares (dt, status) que já têm output.json.
     Ordena dt pelo total de jobs (menor → maior).
     """
@@ -173,7 +188,8 @@ def generate_run_config(
     with open(instances_csv, encoding="utf-8") as f:
         for row in _csv.DictReader(f):
             count = int(row["count_jobs"])
-            if count < min_jobs or count > max_jobs:
+            capacity = int(row["job_capacity"])
+            if not _matches_filters(capacity, count, filters):
                 continue
             dt, status, machine = row["date"], row["status"], row["machine_name"]
             if skip_existing and _has_output(dt, status):
@@ -197,9 +213,41 @@ def generate_run_config(
 
     total = sum(len(v["only_status"]) for v in config.values())
     print(f"\nrun_config.json gerado: {out_path}")
-    print(f"  {len(config)} datas | {total} lotes | {min_jobs} <= jobs <= {max_jobs}")
+    print(f"  {len(config)} datas | {total} lotes | filtros: {filters}")
     if skip_existing and skipped:
         print(f"  {skipped} lotes ignorados (output.json já existe)")
+
+
+# -----------------------------------------------------------------------------
+# Limpeza de outputs não-elegíveis
+# -----------------------------------------------------------------------------
+
+
+def cleanup_all_outputs(
+    trusted_dir: Path = TRUSTED_DIR,
+    latest_dir: Path = LATEST_DIR,
+) -> None:
+    """Remove todos os output.json em trusted/ e todos os subdiretórios de latest/."""
+    import shutil
+
+    deleted_outputs = 0
+    for output_file in sorted(trusted_dir.rglob("output.json")):
+        output_file.unlink()
+        deleted_outputs += 1
+        print(f"  [cleanup] removido {output_file.relative_to(BASE_DIR)}")
+
+    deleted_latest = 0
+    if latest_dir.is_dir():
+        for status_dir in sorted(latest_dir.iterdir()):
+            if status_dir.is_dir():
+                shutil.rmtree(status_dir)
+                deleted_latest += 1
+                print(f"  [cleanup] removido latest/{status_dir.name}/")
+
+    print(
+        f"\n[cleanup] {deleted_outputs} output.json removidos"
+        f" | {deleted_latest} latest/ removidos"
+    )
 
 
 # -----------------------------------------------------------------------------
@@ -208,6 +256,8 @@ def generate_run_config(
 
 
 def main() -> None:
+    cleanup_all_outputs()
+
     batches = discover_batches(RAW_DIR)
     if not batches:
         print(f"Nenhum lote encontrado em {RAW_DIR}")

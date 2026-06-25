@@ -153,6 +153,32 @@ class TimeIndex:
             expr=model.objective_expr + model.penalty, sense=pyo.minimize
         )
 
+    def _tardiness_rule(self, model, job: Job):
+        return model.Tardiness[job.id] >= model.C[job.id] - job.due_date_slot
+
+    def minimize_sum_tardiness(
+        self, model, time_slots: list[int], jobs_data: list[Job]
+    ):
+        self.objective_type = "sum_tardiness"
+        model.Tardiness = pyo.Var(
+            model.jobs_id, domain=pyo.NonNegativeReals, name="completion"
+        )
+        model.tardiness_constraint = pyo.Constraint(
+            jobs_data, rule=self._tardiness_rule
+        )
+        model.sum_tardiness = sum(model.Tardiness[job.id] for job in jobs_data)
+        # O W é o valor da pior situação possivel, nesse caso, todos os jobs atrasassem até o ultimo slot
+        W = len(jobs_data) * time_slots[-1] + 1
+        model.penalty = sum(W * model.y[job.id] for job in jobs_data)
+        epsilon = 1 / W
+        model.sum_completion_time = sum(model.C[job.id] for job in jobs_data)
+        model.objective = pyo.Objective(
+            expr=model.sum_tardiness
+            + model.penalty
+            + epsilon * model.sum_completion_time,
+            sense=pyo.minimize,
+        )
+
     def generate_output(self) -> dict:
         model = self.model
         machine_id = self.machine_data.id
@@ -182,7 +208,7 @@ class TimeIndex:
             "machines_scheduling": [
                 {
                     "machine_id": machine_id,
-                    self.objective_type: self.objective_value,
+                    "objective_function": self.objective_value,
                     "count_jobs_not_allocated": count_jobs_not_allocated,
                     "solve_time_seconds": round(self.solve_time, 3),
                     "termination_condition": self.termination_condition,
@@ -266,8 +292,8 @@ class TimeIndex:
             print(f"[resource_constraint] {perf_counter() - t0:.3f}s")
 
         t0 = perf_counter()
-        self.minmize_sum_completion_time(model, time_slots, jobs_data)
-        print(f"[sum_completion_time] {perf_counter() - t0:.3f}s")
+        self.minimize_sum_tardiness(model, time_slots, jobs_data)
+        print(f"[sum_tardiness] {perf_counter() - t0:.3f}s")
 
         model.write("model.lp", io_options={"symbolic_solver_labels": True})
 
@@ -279,6 +305,8 @@ class TimeIndex:
         self.termination_condition = str(result.solver.termination_condition)
         if self.objective_type == "c_max":
             self.objective_value = pyo.value(model.C_max)
+        elif self.objective_type == "sum_tardiness":
+            self.objective_value = pyo.value(model.sum_tardiness)
         else:
             self.objective_value = pyo.value(model.objective_expr)
 
