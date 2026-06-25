@@ -9,7 +9,7 @@
 
 int main(int argc, char** argv){
     /*  Primeiro argumento é o path para o arquivo de instância, segundo é o id da máquina a ser usada */
-    // Podemos testar com a instancia 27112025, machine_id 4
+    // Podemos testar com a instancia 25112025, machine_id 2, coldboxgasado coldbox4
     int machine_to_use = std::stoi(argv[2]);
     ProblemData data = ReadInstance::readData(argv[1], machine_to_use);
     const std::vector<Job>& jobs = data.getJobs();
