@@ -306,7 +306,7 @@ class TimeIndex:
         if self.objective_type == "c_max":
             self.objective_value = pyo.value(model.C_max)
         elif self.objective_type == "sum_tardiness":
-            self.objective_value = pyo.value(model.sum_tardiness)
+            self.objective_value = round(pyo.value(model.objective), 5)
         else:
             self.objective_value = pyo.value(model.objective_expr)
 

@@ -9,6 +9,7 @@ class ILS{
         ILS(const ProblemData& problem_data)
         :problem_data(problem_data) {}
         std::unique_ptr<Solution> contruction();
+        double evaluate(const Solution& solution);
     private:
         const ProblemData& problem_data;
 };
