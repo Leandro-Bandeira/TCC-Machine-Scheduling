@@ -1,0 +1,37 @@
+{
+  "machines_scheduling": [
+    {
+      "machine_id": 5,
+      "objective_function": 0.22514,
+      "count_jobs_not_allocated": 0.0,
+      "solve_time_seconds": 8.051,
+      "termination_condition": "optimal",
+      "jobs": [
+        {
+          "job_id": 147,
+          "start": 162,
+          "end": 170,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 148,
+          "start": 185,
+          "end": 193,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 151,
+          "start": 171,
+          "end": 182,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 152,
+          "start": 194,
+          "end": 205,
+          "sub_machine": 0
+        }
+      ]
+    }
+  ]
+}

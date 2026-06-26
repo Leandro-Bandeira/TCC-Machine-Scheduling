@@ -16,4 +16,6 @@ class ReadInstance{
         static std::vector<Job> parse_jobs(const json& data, const int id_machine);
         static std::vector<std::vector<int>> parse_setups(const json& data, const int id_machine, const std::vector<Job>& jobs);
         static int parse_H(const json& data, const int id_machine);
+        static int parse_first_slot(const json& data, const int id_machine);
+        static std::vector<int> parse_start_slots(const json& data, const int id_machine);
 };

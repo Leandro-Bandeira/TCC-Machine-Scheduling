@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <iostream>
 #include <random>
+#include <climits>
 
 /*
  * Para cada job, calculamos seu completion time
@@ -18,7 +19,9 @@ double ILS::evaluate(const Solution& solution){
    std::vector<Job> sequence = solution.sequence;
    const std::vector<std::vector<int>>& setup_matrix = this->problem_data.getSetupMatrix();
    const int H = this->problem_data.getH();
-   const int numJobs = this->problem_data.getNumJobs();
+   const int first_slot = this->problem_data.getFirstSlot();
+   const int numJobs = this->problem_data.getNumJobs() - 1; // Subtraimos -1 por conta do job dummy
+   const std::vector<int>& start_slots = this->problem_data.getStartSlots();
 
    // Somatorio do tardiness
    int sum_tardiness = 0;
@@ -43,8 +46,9 @@ double ILS::evaluate(const Solution& solution){
            setup = setup_matrix[prev_idx][current_indx];
        }
 
-       int start = std::max(last_completion_time + setup, job.release_date_slot);
-
+       int earliest = std::max({last_completion_time + setup, job.release_date_slot, first_slot});
+       auto it = std::lower_bound(start_slots.begin(), start_slots.end(), earliest);
+       int start = (it != start_slots.end()) ? *it : H + 1;
        if (start > H){
            sum_jobs_not_allocated += 1;
            continue;

@@ -9,7 +9,9 @@ ProblemData ReadInstance::readData(const std::string& path, const int id_machine
     std::vector<Job> jobs = parse_jobs(data, id_machine);
     std::vector<std::vector<int>> setup_matrix = parse_setups(data, id_machine, jobs);
     int H = parse_H(data, id_machine);
-    return ProblemData(jobs, setup_matrix, H);
+    int first_slot = parse_first_slot(data, id_machine);
+    std::vector<int> start_slots = parse_start_slots(data, id_machine);
+    return ProblemData(jobs, setup_matrix, H, first_slot, start_slots);
 }
 
 /* Função privada que parseia os jobs do json */
@@ -44,6 +46,28 @@ int ReadInstance::parse_H(const json& data, const int id_machine) {
         return slots.back().get<int>();
     }
     return 0;
+}
+
+int ReadInstance::parse_first_slot(const json& data, const int id_machine) {
+    for (const auto& machine : data["machines"]) {
+        if (machine["machine_id"].get<int>() != id_machine) continue;
+        const auto& slots = machine["start_slots"];
+        if (slots.empty()) return 0;
+        return slots.front().get<int>();
+    }
+    return 0;
+}
+
+std::vector<int> ReadInstance::parse_start_slots(const json& data, const int id_machine) {
+    for (const auto& machine : data["machines"]) {
+        if (machine["machine_id"].get<int>() != id_machine) continue;
+        std::vector<int> slots;
+        for (const auto& s : machine["start_slots"]) {
+            slots.push_back(s.get<int>());
+        }
+        return slots;
+    }
+    return {};
 }
 
 std::vector<std::vector<int>> ReadInstance::parse_setups(
