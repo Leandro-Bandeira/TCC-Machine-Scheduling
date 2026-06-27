@@ -1,22 +1,35 @@
 # Job Scheduling
 
-Pipeline de otimização de sequenciamento de produção usando o modelo **Time-Index** (Pyomo + HiGHS).
+Pipeline de otimização de sequenciamento de produção usando o modelo **Time-Index** (Pyomo + HiGHS) e heurística **ILS** (Iterated Local Search).
 
 ## Estrutura do projeto
 
 ```
 src/
-  main/        ← pipeline de otimização
+  main/           ← pipeline de otimização exata
+    entities.py
     data_input_process.py
     optimize.py
     data_output_process.py
-    entities.py
-  analysis/    ← ferramentas de análise e visualização (independentes do otimizador)
+  analysis/       ← ferramentas de análise e visualização
     dashboard.py
     instances_data.py
     results_data.py
+  heuristics/     ← heurística ILS em C++
+    main.cpp
+    algorithms/
+      ils.hpp / ils.cpp
+    models/
+      job.hpp
+      solution.hpp
+      ProblemData.hpp
+    utils/
+      read_instance.hpp / read_instance.cpp
+    Makefile
 tests/
   test_output.py
+run.sh            ← orquestrador do pipeline completo
+run_config.json   ← instâncias a processar (gerado por instances_data.py)
 ```
 
 ## Função de cada arquivo
@@ -25,12 +38,18 @@ tests/
 |---|---|
 | `src/main/entities.py` | Data classes `Job` e `Machine` usadas pelo otimizador |
 | `src/main/data_input_process.py` | Lê demanda de `data/raw/`, valida jobs, calcula slots de tempo e setups, gera `input.json` em `data/trusted/` |
-| `src/main/optimize.py` | Lê `input.json`, constrói e resolve o modelo Time-Index (Pyomo + HiGHS) por máquina, gera `output.json` |
+| `src/main/optimize.py` | Lê `input.json`, constrói e resolve o modelo Time-Index (Pyomo + HiGHS) minimizando soma de tardiness com desempate por completion time, gera `output.json` |
 | `src/main/data_output_process.py` | Lê `input.json` + `output.json`, converte slots para datetime, escreve `result.parquet`/`.csv` em `data/trusted/` e `data/latest/` |
-| `src/analysis/dashboard.py` | Dashboard Streamlit interativo: Gantt semanal e por dia, setups, indisponibilidades e delays |
-| `src/analysis/instances_data.py` | Varre `data/raw/`, executa `data_input_process.py` para cada data, gera `data/instances.csv` com contagem de jobs por máquina e `run_config.json` filtrado por intervalo de jobs |
+| `src/analysis/dashboard.py` | Dashboard Streamlit interativo: Gantt semanal e por dia, setups, indisponibilidades e delays por dia (não por hora) |
+| `src/analysis/instances_data.py` | Varre `data/raw/`, executa `data_input_process.py` para cada data, limpa todos os `output.json` e `data/latest/` existentes, gera `data/instances.csv` e `run_config.json` filtrado por `INSTANCE_FILTERS` |
 | `src/analysis/results_data.py` | Coleta todos os `output.json` em `data/trusted/`, cruza com `input.json` e gera `data/results.csv` consolidado |
 | `tests/test_output.py` | Valida o output do otimizador: cobertura de jobs, sem sobreposição, respeitado not_before_date, setup times e resource constraint |
+| `src/heuristics/algorithms/ils.hpp/.cpp` | Método construtivo GRASP e função de avaliação da solução (sum tardiness + penalidade + ε·sum completion time), respeitando start_slots da máquina |
+| `src/heuristics/models/job.hpp` | Struct `Job` com id, processing_slots, release_date_slot, due_date_slot, resource_id e idx |
+| `src/heuristics/models/solution.hpp` | Struct `Solution` com sequência de jobs e valor da função objetivo |
+| `src/heuristics/models/ProblemData.hpp` | Agrega jobs, setup_matrix, start_slots, H (último slot) e first_slot por instância de máquina |
+| `src/heuristics/utils/read_instance.hpp/.cpp` | Lê `input.json` e constrói `ProblemData` (jobs, setup_matrix, H, first_slot, start_slots) |
+| `src/heuristics/Makefile` | Compila o executável `heuristic` em C++17 |
 
 ## Estrutura do pipeline
 
@@ -39,6 +58,70 @@ data_input_process.py  →  optimize.py  →  data_output_process.py
       input.json              output.json       result.parquet / .csv
                                                 data/latest/<status>/
 ```
+
+---
+
+## Executar o pipeline completo (`run.sh`)
+
+Orquestra os 3 passos do pipeline para todas as instâncias definidas em `run_config.json`.
+
+```bash
+./run.sh
+```
+
+Por padrão roda todas as instâncias, mesmo que já tenham `output.json`. Para pular instâncias que já foram otimizadas:
+
+```bash
+./run.sh --skip-existing
+```
+
+| Flag | Padrão | Descrição |
+|---|---|---|
+| `--skip-existing` | `false` | Pula datas onde todos os status já têm `output.json` |
+
+O `run_config.json` é gerado por `instances_data.py` e define quais datas, status e máquinas processar.
+
+---
+
+## Heurística ILS (`src/heuristics/`)
+
+Implementação em C++17 de uma heurística construtiva GRASP para o problema de sequenciamento.
+
+### Compilar
+
+```bash
+cd src/heuristics
+make
+```
+
+Gera o executável `src/heuristics/heuristic`.
+
+### Executar
+
+```bash
+./heuristic <caminho/input.json> <machine_id>
+```
+
+Exemplo:
+
+```bash
+./heuristic ../../data/trusted/01122025/94/input.json 5
+```
+
+Imprime a sequência construída e o valor da função objetivo.
+
+### Função objetivo (heurística)
+
+Mesma estrutura do modelo exato:
+
+```
+FO = sum_tardiness + W * jobs_não_alocados + ε * sum_completion_time
+W   = (n_jobs * H) + 1
+ε   = 1 / W
+H   = último start_slot da máquina
+```
+
+Jobs são considerados não alocados quando o primeiro slot válido disponível excede `H`. A busca do slot usa `lower_bound` sobre `start_slots`, respeitando gaps de turno da máquina.
 
 ---
 
@@ -181,7 +264,8 @@ Saída: `data/results.csv`
 | `dt` | nome da pasta `<DDMMYYYY>` | Data da instância (YYYY-MM-DD) |
 | `status` | nome da subpasta | Lote processado |
 | `machine_name` | `input.json → machines` | Nome da máquina (via `machine_id`) |
-| `sum_completion_time` | `output.json` | Valor da função objetivo |
+| `objective_function` | `output.json` | Valor da função objetivo (sum tardiness + penalidade + ε·sum completion time), arredondado em 5 casas decimais |
+| `mip_gap` | `output.json` | Gap relativo MIP `\|incumbent - bound\| / \|incumbent\|`; `null` se sem solução ou ótimo exato (gap=0) |
 | `count_jobs_not_allocated` | `output.json` | Jobs não alocados (penalizados) |
 | `solve_time_seconds` | `output.json` | Tempo de resolução do solver |
 | `count_machines` | `input.json → machines.job_capacity` | Número de sub-máquinas |

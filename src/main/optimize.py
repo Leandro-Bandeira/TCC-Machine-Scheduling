@@ -45,6 +45,10 @@ class TimeIndex:
         )
 
         self.model = pyo.ConcreteModel("Time Index Model")
+        self.objective_value = None
+        self.mip_gap = None
+        self.solve_time = 0.0
+        self.termination_condition = "unknown"
 
     def _single_start_rule(self, model, job: Job):
         return (
@@ -182,6 +186,22 @@ class TimeIndex:
     def generate_output(self) -> dict:
         model = self.model
         machine_id = self.machine_data.id
+
+        if self.objective_value is None:
+            return {
+                "machines_scheduling": [
+                    {
+                        "machine_id": machine_id,
+                        "objective_function": None,
+                        "mip_gap": None,
+                        "count_jobs_not_allocated": len(self.jobs_data),
+                        "solve_time_seconds": round(self.solve_time, 3),
+                        "termination_condition": self.termination_condition,
+                        "jobs": [],
+                    }
+                ]
+            }
+
         count_jobs_not_allocated = sum(
             pyo.value(model.y[job.id]) for job in self.jobs_data
         )
@@ -209,6 +229,7 @@ class TimeIndex:
                 {
                     "machine_id": machine_id,
                     "objective_function": self.objective_value,
+                    "mip_gap": self.mip_gap,
                     "count_jobs_not_allocated": count_jobs_not_allocated,
                     "solve_time_seconds": round(self.solve_time, 3),
                     "termination_condition": self.termination_condition,
@@ -298,21 +319,36 @@ class TimeIndex:
         model.write("model.lp", io_options={"symbolic_solver_labels": True})
 
         solver = pyo.SolverFactory("highs")
+        solver.config.load_solutions = False
+        solver.config.time_limit = 7200
         solver.options["time_limit"] = 7200
         _t0 = perf_counter()
         result = solver.solve(model, tee=True)
         self.solve_time = perf_counter() - _t0
         self.termination_condition = str(result.solver.termination_condition)
-        if self.objective_type == "c_max":
-            self.objective_value = pyo.value(model.C_max)
-        elif self.objective_type == "sum_tardiness":
-            self.objective_value = round(pyo.value(model.objective), 5)
+
+        incumbent = result.incumbent_objective
+        bound = result.objective_bound
+        has_solution = incumbent is not None
+        if has_solution:
+            solver.load_vars()
+            if self.objective_type == "c_max":
+                self.objective_value = pyo.value(model.C_max)
+            elif self.objective_type == "sum_tardiness":
+                self.objective_value = round(pyo.value(model.objective), 5)
+            else:
+                self.objective_value = pyo.value(model.objective_expr)
+            if incumbent != 0 and bound is not None:
+                self.mip_gap = round(abs(incumbent - bound) / abs(incumbent), 6)
+            else:
+                self.mip_gap = None
         else:
-            self.objective_value = pyo.value(model.objective_expr)
+            self.objective_value = None
+            self.mip_gap = None
 
         print(result.solver.status)
         print(result.solver.termination_condition)
-        print(f"{self.objective_type}: {self.objective_value}")
+        print(f"{self.objective_type}: {self.objective_value} (gap={self.mip_gap})")
 
 
 def main(
