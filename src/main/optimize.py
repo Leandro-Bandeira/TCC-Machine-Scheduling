@@ -322,6 +322,7 @@ class TimeIndex:
         solver.config.load_solutions = False
         solver.config.time_limit = 7200
         solver.options["time_limit"] = 7200
+        solver.options["simplex_scale_strategy"] = 4
         _t0 = perf_counter()
         result = solver.solve(model, tee=True)
         self.solve_time = perf_counter() - _t0
@@ -335,7 +336,7 @@ class TimeIndex:
             if self.objective_type == "c_max":
                 self.objective_value = pyo.value(model.C_max)
             elif self.objective_type == "sum_tardiness":
-                self.objective_value = round(pyo.value(model.objective), 5)
+                self.objective_value = pyo.value(model.objective)
             else:
                 self.objective_value = pyo.value(model.objective_expr)
             if incumbent != 0 and bound is not None:
