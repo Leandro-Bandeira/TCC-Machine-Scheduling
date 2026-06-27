@@ -148,7 +148,8 @@ void LocalSearch::algorithm(const ProblemData &problemData, Solution &solution){
             break;
         }
         if(improved){
-            std::cout << "improved" << std::endl;
+            std::string movement = (NL[n] == 1) ? "Swap" : (NL[n] == 2) ? "OrOpt" : "2Opt";
+            std::cout << "[improved] " << movement << " → FO=" << solution.objective_function << std::endl;
             NL = {1, 2, 3};
         }else{
             std::swap(NL[n], NL.back());
