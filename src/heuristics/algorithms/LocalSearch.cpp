@@ -1,9 +1,48 @@
 #include "LocalSearch.hpp"
+#include <algorithm>
 #include <random>
 #include <iostream>
 
 #include "../utils/objective.hpp"
 
+/*
+ * O algoritmo 2Opt, vamos escolher 2 vértices não adjacentes e reinserir eles na rota, com a rota entre eles invertida
+ * Por exemplo: Para i = 2 e j = 5, o movimento inclui a posição j e exclui a posição i
+ * Temos o seguinte exemplo:
+ * 0 1 (2) 3 4 (5) 6 7 8 9 0
+ * 0 1 2 5 4 3 6 7 8 9
+ * Tanto o 2opt como o swap sao simetricos, por isso so vamos o movimento par aum lado
+ */
+bool LocalSearch::bestImprovement2Opt(const ProblemData &problemData, Solution &solution){
+    double bestDelta = solution.objective_function;
+    int best_i = -1;
+    int best_j = -1;
+
+    std::vector<Job> sequence = solution.sequence;
+
+    for(size_t i = 1; i < sequence.size() - 1; i++){
+        for(size_t j = i + 2; j < sequence.size() - 1; j++){
+            std::vector<Job> temp = sequence;
+            std::reverse(temp.begin() + i + 1, temp.begin() + j + 1);
+
+            Solution tempSolution;
+            tempSolution.sequence = temp;
+            double delta = evaluate(tempSolution, problemData);
+            if(delta < bestDelta){
+                bestDelta = delta;
+                best_i = i;
+                best_j = j;
+            }
+        }
+    }
+
+    if(best_i != -1){
+        std::reverse(solution.sequence.begin() + best_i + 1, solution.sequence.begin() + best_j + 1);
+        solution.objective_function = bestDelta;
+        return true;
+    }
+    return false;
+}
 /*
  * O algoritmo OrOpt ou reinsertion, devemos pegar um elemento e mudar sua posição
  * dessa forma: 1 2 3 4 5 6 1, se temos i = 1 e j = 5, logo
@@ -92,7 +131,7 @@ bool LocalSearch::bestImprovementSwap(const ProblemData &problemData, Solution &
 
 
 void LocalSearch::algorithm(const ProblemData &problemData, Solution &solution){
-    std::vector<int> NL = {1, 2};
+    std::vector<int> NL = {1, 2, 3};
     bool improved = false;
 
     while(!NL.empty()){
@@ -103,10 +142,14 @@ void LocalSearch::algorithm(const ProblemData &problemData, Solution &solution){
             break;
             case 2:
             improved = bestImprovementOrOpt(problemData, solution);
+            break;
+            case 3:
+            improved = bestImprovement2Opt(problemData, solution);
+            break;
         }
         if(improved){
             std::cout << "improved" << std::endl;
-            NL = {1, 2};
+            NL = {1, 2, 3};
         }else{
             std::swap(NL[n], NL.back());
             NL.pop_back();
