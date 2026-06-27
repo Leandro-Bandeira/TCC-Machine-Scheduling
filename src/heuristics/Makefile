@@ -1,7 +1,7 @@
 CXX = g++
 CXXFLAGS = -std=c++17
 
-SRCS = main.cpp utils/read_instance.cpp algorithms/ils.cpp
+SRCS = main.cpp utils/read_instance.cpp utils/objective.cpp algorithms/ils.cpp algorithms/LocalSearch.cpp
 TARGET = heuristic
 
 $(TARGET): $(SRCS)

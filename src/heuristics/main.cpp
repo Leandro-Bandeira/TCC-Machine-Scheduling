@@ -1,4 +1,5 @@
 #include <iostream>
+#include <chrono>
 #include "utils/read_instance.hpp"
 #include "models/job.hpp"
 #include "models/ProblemData.hpp"
@@ -23,6 +24,10 @@ int main(int argc, char** argv){
         std::cout << "\n";
     }
     ILS ils(data);
-    std::unique_ptr<Solution> solution = ils.contruction();
+    auto t0 = std::chrono::steady_clock::now();
+    ils.algorithm();
+    auto t1 = std::chrono::steady_clock::now();
+    double elapsed = std::chrono::duration<double>(t1 - t0).count();
+    std::cout << "Tempo total: " << elapsed << "s" << std::endl;
     return 0;
 }
