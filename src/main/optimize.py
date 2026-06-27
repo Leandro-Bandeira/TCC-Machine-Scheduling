@@ -8,6 +8,7 @@ from time import perf_counter
 
 import pyomo.environ as pyo
 from entities import Job, Machine
+from pyomo.contrib.solver.solvers.highs import Highs as HiGHS
 
 BASE_DIR = Path(__file__).parent.parent.parent
 
@@ -32,13 +33,37 @@ class TimeIndex:
         self.resources_data = resources_data
         self.big_setup = big_setup
 
-        # Informações que serão utilizadas na modelagem
+        # Simula pior caso nos start_slots reais: n jobs em sequência com max_setup e max_processing
+        # snappando sempre para o próximo start_slot disponível
+        start_slots = self.machine_data.start_slots
+        if self.jobs_data and start_slots:
+            all_setups = [v for targets in setup_data.values() for v in targets.values()]
+            max_setup = max(all_setups) if all_setups else 0
+            max_processing = max(job.processing_slots for job in self.jobs_data)
+            max_release = max(job.release_date_slot for job in self.jobs_data)
+            n = len(self.jobs_data)
+
+            current = max_release
+            h_effective = start_slots[0]
+            for _ in range(n):
+                idx = bisect_left(start_slots, current)
+                if idx >= len(start_slots):
+                    break
+                h_effective = start_slots[idx]
+                current = h_effective + max_processing + max_setup
+        else:
+            h_effective = start_slots[-1] if start_slots else 0
         self.time_slots_job = {
             job.id: [
-                t for t in self.machine_data.start_slots if t >= job.release_date_slot
+                t
+                for t in self.machine_data.start_slots
+                if job.release_date_slot <= t <= h_effective
             ]
             for job in self.jobs_data
         }
+        print(
+            f"  H_efetivo={h_effective} (original H={self.machine_data.start_slots[-1] if self.machine_data.start_slots else 0}, slots reduzidos)"
+        )
         self.count_machines = self.machine_data.job_capacity
         print(
             f"Resolvendo para a máquina: {self.machine_data.machine_name}, Jobs: {len(self.jobs_data)}, Machines: {self.count_machines}"
@@ -318,27 +343,27 @@ class TimeIndex:
 
         model.write("model.lp", io_options={"symbolic_solver_labels": True})
 
-        solver = pyo.SolverFactory("highs")
+        solver = HiGHS()
         solver.config.load_solutions = False
         solver.config.time_limit = 7200
-        solver.options["time_limit"] = 7200
-        solver.options["simplex_scale_strategy"] = 4
+        solver.config.solver_options = {"simplex_scale_strategy": 4}
         _t0 = perf_counter()
         result = solver.solve(model, tee=True)
         self.solve_time = perf_counter() - _t0
-        self.termination_condition = str(result.solver.termination_condition)
+        self.termination_condition = str(result.termination_condition)
 
-        incumbent = result.incumbent_objective
-        bound = result.objective_bound
-        has_solution = incumbent is not None
+        has_solution = result.incumbent_objective is not None
         if has_solution:
-            solver.load_vars()
+            result.solution_loader.load_vars()
             if self.objective_type == "c_max":
                 self.objective_value = pyo.value(model.C_max)
             elif self.objective_type == "sum_tardiness":
                 self.objective_value = pyo.value(model.objective)
             else:
                 self.objective_value = pyo.value(model.objective_expr)
+
+            incumbent = result.incumbent_objective
+            bound = result.objective_bound
             if incumbent != 0 and bound is not None:
                 self.mip_gap = round(abs(incumbent - bound) / abs(incumbent), 6)
             else:
@@ -347,8 +372,7 @@ class TimeIndex:
             self.objective_value = None
             self.mip_gap = None
 
-        print(result.solver.status)
-        print(result.solver.termination_condition)
+        print(self.termination_condition)
         print(f"{self.objective_type}: {self.objective_value} (gap={self.mip_gap})")
 
 
