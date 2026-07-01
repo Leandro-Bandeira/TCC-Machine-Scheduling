@@ -345,7 +345,8 @@ class TimeIndex:
 
         solver = HiGHS()
         solver.config.load_solutions = False
-        solver.config.time_limit = 7200
+        solver.config.raise_exception_on_nonoptimal_result = False
+        solver.config.time_limit = 14400
         solver.config.solver_options = {"simplex_scale_strategy": 4}
         _t0 = perf_counter()
         result = solver.solve(model, tee=True)
