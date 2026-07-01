@@ -1,18 +1,26 @@
 #include "LocalSearch.hpp"
 #include <algorithm>
+#include <iomanip>
 #include <random>
 #include <iostream>
 
 #include "../utils/objective.hpp"
 
-/*
- * O algoritmo 2Opt, vamos escolher 2 vértices não adjacentes e reinserir eles na rota, com a rota entre eles invertida
- * Por exemplo: Para i = 2 e j = 5, o movimento inclui a posição j e exclui a posição i
- * Temos o seguinte exemplo:
- * 0 1 (2) 3 4 (5) 6 7 8 9 0
- * 0 1 2 5 4 3 6 7 8 9
- * Tanto o 2opt como o swap sao simetricos, por isso so vamos o movimento par aum lado
- */
+// ---------------------------------------------------------------------------
+// 2-Opt
+// ---------------------------------------------------------------------------
+//
+// Dado um par de posições (i, j) com j >= i+2, inverte o segmento ]i, j]:
+//
+//   Antes:  ... | seq[i] | seq[i+1] ... seq[j] | seq[j+1] | ...
+//   Depois: ... | seq[i] | seq[j]   ... seq[i+1] | seq[j+1] | ...
+//
+// Exemplo para i=2, j=5 em sequência [0,1,2,3,4,5,6,7]:
+//   Inverte posições 3,4,5 → [0,1,2,5,4,3,6,7]
+//
+// O movimento é simétrico: inverter ]i,j] dá o mesmo resultado que inverter ]j,i]
+// portanto j sempre começa em i+2 (j=i+1 seria inversão de segmento de tamanho 1, no-op).
+// Os dummies nas pontas (posições 0 e size-1) nunca são movidos.
 bool LocalSearch::bestImprovement2Opt(const ProblemData &problemData, Solution &solution){
     double bestDelta = solution.objective_function;
     int best_i = -1;
@@ -43,29 +51,48 @@ bool LocalSearch::bestImprovement2Opt(const ProblemData &problemData, Solution &
     }
     return false;
 }
-/*
- * O algoritmo OrOpt ou reinsertion, devemos pegar um elemento e mudar sua posição
- * dessa forma: 1 2 3 4 5 6 1, se temos i = 1 e j = 5, logo
- * 1 3 4 5 6 2 1
- * Seguimos o mesmo calculo de que o swap, diferente do swap, o reinsertion pode ser pra frente ou para trás
- */
-bool LocalSearch::bestImprovementOrOpt(const ProblemData &problemData, Solution &solution){
+
+// ---------------------------------------------------------------------------
+// OrOpt-k (Reinserção de segmento)
+// ---------------------------------------------------------------------------
+//
+// Remove um bloco de k jobs consecutivos da posição i e o reinsere na posição j
+// do vetor pós-remoção. k pode ser 1, 2 ou 3.
+//
+// Exemplo para k=1, i=2, j=5 em [D,1,2,3,4,5,6,D]:
+//   Remove job na posição 2 → [D,1,3,4,5,6,D]
+//   Insere na posição 5     → [D,1,3,4,5,2,6,D]
+//
+// Exemplo para k=2, i=2, j=4 em [D,1,2,3,4,5,6,D]:
+//   Remove jobs nas posições 2,3 → [D,1,4,5,6,D]
+//   Insere {2,3} na posição 4   → [D,1,4,5,2,3,6,D]   (mantém ordem interna do segmento)
+//
+// Diferente do Swap e 2-Opt (simétricos), o OrOpt é assimétrico: mover o segmento
+// para frente e para trás produz resultados distintos, por isso j percorre todo o
+// intervalo válido [1, n-k-1] no vetor pós-remoção (pulando j==i, que seria no-op).
+// Os dummies nas pontas nunca são movidos.
+bool LocalSearch::bestImprovementOrOpt(const ProblemData &problemData, Solution &solution, int k){
     double bestDelta = solution.objective_function;
 
     int best_i = -1;
     int best_j = -1;
 
-    std::vector<Job>sequence = solution.sequence;
+    const std::vector<Job>& sequence = solution.sequence;
+    int n = (int)sequence.size();
 
-    for(size_t i = 1; i < solution.sequence.size() - 1; i++){
-        Job vi = solution.sequence[i];
-        for(size_t j = 1; j < solution.sequence.size() - 1; j++){
-            if (i == j) continue;
+    // i: primeira posição do segmento; i+k-1 deve ser <= n-2 (antes do dummy final)
+    for(int i = 1; i <= n - 1 - k; i++){
+        std::vector<Job> segment(sequence.begin() + i, sequence.begin() + i + k);
+
+        // Após remover k elementos, o vetor tem n-k posições (índices 0..n-k-1).
+        // Posições válidas para inserção: 1 .. n-k-1 (não move para cima do dummy final).
+        // j==i significa reinserção na mesma posição → no-op, pulado.
+        for(int j = 1; j <= n - k - 1; j++){
+            if(j == i) continue;
 
             std::vector<Job> temp = sequence;
-            Job job = temp[i];
-            temp.erase(temp.begin() + i);
-            temp.insert(temp.begin() + j, job);
+            temp.erase(temp.begin() + i, temp.begin() + i + k);
+            temp.insert(temp.begin() + j, segment.begin(), segment.end());
 
             Solution tempSolution;
             tempSolution.sequence = temp;
@@ -78,35 +105,41 @@ bool LocalSearch::bestImprovementOrOpt(const ProblemData &problemData, Solution 
         }
     }
 
-    if (best_i != -1){
-        Job job = solution.sequence[best_i];
-        solution.sequence.erase(solution.sequence.begin() + best_i);
-        solution.sequence.insert(solution.sequence.begin() + best_j, job);
+    if(best_i != -1){
+        // Aplica o melhor movimento encontrado na solução corrente
+        std::vector<Job> segment(solution.sequence.begin() + best_i, solution.sequence.begin() + best_i + k);
+        solution.sequence.erase(solution.sequence.begin() + best_i, solution.sequence.begin() + best_i + k);
+        solution.sequence.insert(solution.sequence.begin() + best_j, segment.begin(), segment.end());
         solution.objective_function = bestDelta;
         return true;
     }
     return false;
-
 }
-/*
- * O algoritmo abaixo realiza o movimento de swap, suponha que temos uma solução do tipo
- * 1 2 3 4 5 1 e estamos aplicando o swap entre i = 1 e j = 4
- * Logo teremos a nova rota dada por: 1 5 3 4 2 1
- * Por enquanto nossa avaliação será dada pelo delta = custoNovo - custoAntigo, delta < 0, improvement
- * O swap considera sempre as posições i e i + 1, justamente porque a troca é equivalente, não adianta estar na posição  i + 2 e olhar para trás
- */
+
+// ---------------------------------------------------------------------------
+// Swap
+// ---------------------------------------------------------------------------
+//
+// Troca dois jobs de posição na sequência. É simétrico: trocar (i,j) dá o
+// mesmo resultado que trocar (j,i), por isso j sempre começa em i+1.
+//
+// Exemplo para i=2, j=4 em [D,1,2,3,4,5,D]:
+//   Troca posições 2 e 4 → [D,1,4,3,2,5,D]
+//
+// Os dummies nas pontas (posições 0 e size-1) nunca participam da troca.
+// O swap é feito in-place sobre a cópia `sequence` e desfeito após avaliar,
+// evitando realocar um vetor temporário a cada iteração.
 bool LocalSearch::bestImprovementSwap(const ProblemData &problemData, Solution &solution){
     double bestDelta = solution.objective_function;
 
     int best_i = -1;
     int best_j = -1;
 
-    std::vector<Job>sequence = solution.sequence;
+    std::vector<Job> sequence = solution.sequence;
 
     for(size_t i = 1; i < solution.sequence.size() - 1; i++){
-        Job vi = solution.sequence[i];
         for(size_t j = i + 1; j < solution.sequence.size() - 1; j++){
-            std::swap(sequence[i], sequence[j]); // Realiza o Swap
+            std::swap(sequence[i], sequence[j]); // realiza o swap
 
             Solution temp;
             temp.sequence = sequence;
@@ -116,7 +149,7 @@ bool LocalSearch::bestImprovementSwap(const ProblemData &problemData, Solution &
                 best_i = i;
                 best_j = j;
             }
-            std::swap(sequence[i], sequence[j]); // Desfaz o swap
+            std::swap(sequence[i], sequence[j]); // desfaz o swap
         }
     }
 
@@ -126,12 +159,21 @@ bool LocalSearch::bestImprovementSwap(const ProblemData &problemData, Solution &
         return true;
     }
     return false;
-
 }
 
-
+// ---------------------------------------------------------------------------
+// VNS — Variable Neighborhood Search
+// ---------------------------------------------------------------------------
+//
+// Explora 5 vizinhanças em ordem aleatória:
+//   1 = Swap      2 = OrOpt-1      3 = 2-Opt      4 = OrOpt-2      5 = OrOpt-3
+//
+// Regra de atualização:
+//   - Se a vizinhança sortedada melhorou a solução → reseta NL (volta a explorar todas)
+//   - Se não melhorou → remove essa vizinhança de NL (O(1) via swap+pop_back)
+// Termina quando NL fica vazia: óptimo local em todas as vizinhanças simultaneamente.
 void LocalSearch::algorithm(const ProblemData &problemData, Solution &solution){
-    std::vector<int> NL = {1, 2, 3};
+    std::vector<int> NL = {1, 2, 3, 4, 5};
     bool improved = false;
 
     while(!NL.empty()){
@@ -141,17 +183,24 @@ void LocalSearch::algorithm(const ProblemData &problemData, Solution &solution){
             improved = bestImprovementSwap(problemData, solution);
             break;
             case 2:
-            improved = bestImprovementOrOpt(problemData, solution);
+            improved = bestImprovementOrOpt(problemData, solution, 1);
             break;
             case 3:
             improved = bestImprovement2Opt(problemData, solution);
             break;
+            case 4:
+            improved = bestImprovementOrOpt(problemData, solution, 2);
+            break;
+            case 5:
+            improved = bestImprovementOrOpt(problemData, solution, 3);
+            break;
         }
         if(improved){
-            std::string movement = (NL[n] == 1) ? "Swap" : (NL[n] == 2) ? "OrOpt" : "2Opt";
-            std::cout << "[improved] " << movement << " → FO=" << solution.objective_function << std::endl;
-            NL = {1, 2, 3};
+            std::string labels[] = {"", "Swap", "OrOpt1", "2Opt", "OrOpt2", "OrOpt3"};
+            std::cout << "[improved] " << labels[NL[n]] << " → FO=" << solution.objective_function << std::endl;
+            NL = {1, 2, 3, 4, 5};
         }else{
+            // Remove vizinhança sem melhora em O(1)
             std::swap(NL[n], NL.back());
             NL.pop_back();
         }
@@ -162,6 +211,5 @@ void LocalSearch::algorithm(const ProblemData &problemData, Solution &solution){
         std::cout << "[id=" << job.id << " release=" << job.release_date_slot << " due date=" << job.due_date_slot << "]";
     }
     std::cout << std::endl;
-    std::cout << "Função objetivo: " << solution.objective_function << std::endl;
-
+    std::cout << "Função objetivo: " << std::setprecision(15) << solution.objective_function << std::endl;
 }

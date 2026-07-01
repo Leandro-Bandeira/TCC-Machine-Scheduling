@@ -1,12 +1,19 @@
 #pragma once
 
-
 #include <vector>
 #include "job.hpp"
 
-
+// Agrega todos os dados estáticos da instância para uma máquina específica.
+// Passado por referência constante para ILS e LocalSearch — nunca modificado.
 class ProblemData{
     public:
+        // jobs: vetor de jobs da máquina; jobs[0] é sempre o dummy (idx=0).
+        // setup_matrix: matrix NxN onde setup_matrix[i][j] é o tempo de setup
+        //   em slots necessário após processar o job de idx=i antes do job idx=j.
+        // H: último start_slot disponível — horizonte de planejamento.
+        // first_slot: primeiro start_slot disponível (abertura do turno).
+        // start_slots: lista ordenada de todos os slots em que a máquina pode iniciar
+        //   um job (slots de abertura de turno). Jobs só podem começar nesses instantes.
         ProblemData(std::vector<Job> jobs, std::vector<std::vector<int>> setup_matrix, int H, int first_slot, std::vector<int> start_slots)
             : jobs(jobs), setup_matrix(setup_matrix), H(H), first_slot(first_slot), start_slots(start_slots) {}
 

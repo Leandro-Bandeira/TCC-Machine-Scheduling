@@ -8,11 +8,15 @@
 #include <memory>
 #include <vector>
 
+// Ponto de entrada da heurística ILS.
+// Uso: ./heuristic <path_input.json> <machine_id>
+//
+// Lê a instância, imprime a matriz de setup, executa o ILS (construção GRASP + VNS)
+// e reporta o tempo total da fase algoritmica em segundos.
 int main(int argc, char** argv){
-    /*  Primeiro argumento é o path para o arquivo de instância(Input.json), segundo é o id da máquina a ser usada */
-    // Podemos testar com a instancia 25112025, machine_id 2, coldboxgasado coldbox4
     int machine_to_use = std::stoi(argv[2]);
     ProblemData data = ReadInstance::readData(argv[1], machine_to_use);
+
     const std::vector<Job>& jobs = data.getJobs();
     const std::vector<std::vector<int>>& matrix = data.getSetupMatrix();
     int N = jobs.size();
@@ -23,6 +27,7 @@ int main(int argc, char** argv){
         }
         std::cout << "\n";
     }
+
     ILS ils(data);
     auto t0 = std::chrono::steady_clock::now();
     ils.algorithm();

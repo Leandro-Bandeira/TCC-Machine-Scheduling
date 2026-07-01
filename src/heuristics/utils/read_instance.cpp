@@ -2,7 +2,6 @@
 #include <fstream>
 #include <unordered_map>
 
-/* Função estática que dado o path e o id da máquina, lê os dados do problema */
 ProblemData ReadInstance::readData(const std::string& path, const int id_machine) {
     std::ifstream file(path);
     json data = json::parse(file);
@@ -14,18 +13,15 @@ ProblemData ReadInstance::readData(const std::string& path, const int id_machine
     return ProblemData(jobs, setup_matrix, H, first_slot, start_slots);
 }
 
-/* Função privada que parseia os jobs do json */
 std::vector<Job> ReadInstance::parse_jobs(const json& data, const int id_machine) {
     std::vector<Job> jobs;
-    jobs.emplace_back(0, 0, 0,0, 0, 0);  // dummy job at idx=0
+    // Dummy na posição 0: setup_matrix[0][j] = 0 para todo j (sem setup antes do primeiro job)
+    jobs.emplace_back(0, 0, 0, 0, 0, 0);
     int idx = 1;
     for(const auto& job_data : data["jobs"]) {
-        if(job_data["assigned_machine_id"].get<int>() != id_machine) {
-            continue;
-        }
-        if(job_data["Status_Processed"].get<std::string>() != "") {
-            continue;
-        }
+        if(job_data["assigned_machine_id"].get<int>() != id_machine) continue;
+        // Ignora jobs já processados — não entram no sequenciamento
+        if(job_data["Status_Processed"].get<std::string>() != "") continue;
         jobs.emplace_back(
             job_data["id"].get<int>(),
             job_data["processing_slots"].get<int>(),
@@ -38,6 +34,7 @@ std::vector<Job> ReadInstance::parse_jobs(const json& data, const int id_machine
     return jobs;
 }
 
+// H é o último start_slot disponível — define o horizonte máximo de alocação.
 int ReadInstance::parse_H(const json& data, const int id_machine) {
     for (const auto& machine : data["machines"]) {
         if (machine["machine_id"].get<int>() != id_machine) continue;
@@ -48,6 +45,7 @@ int ReadInstance::parse_H(const json& data, const int id_machine) {
     return 0;
 }
 
+// first_slot é a abertura do turno — nenhum job pode iniciar antes desse slot.
 int ReadInstance::parse_first_slot(const json& data, const int id_machine) {
     for (const auto& machine : data["machines"]) {
         if (machine["machine_id"].get<int>() != id_machine) continue;
@@ -70,14 +68,18 @@ std::vector<int> ReadInstance::parse_start_slots(const json& data, const int id_
     return {};
 }
 
+// Constrói a matriz de setup a partir do JSON. O campo "setups" tem estrutura:
+//   setups[machine_id][job_i_id][job_j_id] = slots_de_setup
+// Jobs sem entrada explícita ficam com setup=0 (inicialização da matriz).
 std::vector<std::vector<int>> ReadInstance::parse_setups(
     const json& data, const int id_machine, const std::vector<Job>& jobs)
 {
     int N = jobs.size();
     std::vector<std::vector<int>> matrix(N, std::vector<int>(N, 0));
 
+    // Mapeia job_id (externo) → idx interno para indexar a matriz
     std::unordered_map<int, int> id_to_idx;
-    for (const auto& job:jobs) {
+    for (const auto& job : jobs) {
         id_to_idx[job.id] = job.idx;
     }
 
