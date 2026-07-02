@@ -37,7 +37,9 @@ class TimeIndex:
         # snappando sempre para o próximo start_slot disponível
         start_slots = self.machine_data.start_slots
         if self.jobs_data and start_slots:
-            all_setups = [v for targets in setup_data.values() for v in targets.values()]
+            all_setups = [
+                v for targets in setup_data.values() for v in targets.values()
+            ]
             max_setup = max(all_setups) if all_setups else 0
             max_processing = max(job.processing_slots for job in self.jobs_data)
             max_release = max(job.release_date_slot for job in self.jobs_data)
@@ -346,7 +348,7 @@ class TimeIndex:
         solver = HiGHS()
         solver.config.load_solutions = False
         solver.config.raise_exception_on_nonoptimal_result = False
-        solver.config.time_limit = 14400
+        # solver.config.time_limit = 14400
         solver.config.solver_options = {"simplex_scale_strategy": 4}
         _t0 = perf_counter()
         result = solver.solve(model, tee=True)
