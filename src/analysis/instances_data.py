@@ -21,7 +21,7 @@ RUN_CONFIG_JSON = BASE_DIR / "run_config.json"
 # Cada tupla: (job_capacity, min_jobs, max_jobs)
 # Instâncias que não casam com nenhuma tupla são ignoradas.
 INSTANCE_FILTERS: list[tuple[int, int, int]] = [
-    (2, 5, 10),
+    (2, 5, 20),
     (1, 4, 37),
 ]
 SKIP_EXISTING_OUTPUT = False  # True: ignora dt/status que já têm output.json
@@ -149,12 +149,23 @@ def write_instances_csv(rows: list[dict], path: Path) -> None:
 # -----------------------------------------------------------------------------
 
 
+_OPTIMAL_CONDITION = "TerminationCondition.convergenceCriteriaSatisfied"
+
+
 def _has_output(dt: str, status: str, trusted_dir: Path = TRUSTED_DIR) -> bool:
-    """Verifica se output.json já existe para o par (dt, status)."""
+    """Retorna True se output.json existe e todas as máquinas terminaram com Optimal."""
     from datetime import datetime as _dt
 
     date_slug = _dt.strptime(dt, "%Y-%m-%d").strftime("%d%m%Y")
-    return (trusted_dir / date_slug / status / "output.json").exists()
+    output_path = trusted_dir / date_slug / status / "output.json"
+    if not output_path.exists():
+        return False
+    with open(output_path, encoding="utf-8") as f:
+        data = json.load(f)
+    machines = data.get("machines_scheduling", [])
+    return bool(machines) and all(
+        m.get("termination_condition") == _OPTIMAL_CONDITION for m in machines
+    )
 
 
 def _matches_filters(
@@ -256,7 +267,8 @@ def cleanup_all_outputs(
 
 
 def main() -> None:
-    cleanup_all_outputs()
+    if not SKIP_EXISTING_OUTPUT:
+        cleanup_all_outputs()
 
     batches = discover_batches(RAW_DIR)
     if not batches:

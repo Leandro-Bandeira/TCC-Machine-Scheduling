@@ -1,6 +1,6 @@
 # Movimentos de Busca Local — Sequenciamento em Máquina Única
 
-Todos os movimentos operam sobre uma sequência com **jobs dummy** nas pontas (posições `0` e `n-1`).
+Todos os movimentos operam sobre uma sequência com **jobs dummy** nas pontas (posições `1` e `n-1`).
 Os dummies nunca são movidos. Jobs reais ocupam as posições `1 .. n-2`.
 
 A função objetivo avaliada é:

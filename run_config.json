@@ -15,23 +15,6 @@
       "coldboxgasado_coldbox4"
     ]
   },
-  "2025-12-03": {
-    "only_status": [
-      "96"
-    ],
-    "machines": [
-      "coldboxgasado_coldbox4"
-    ]
-  },
-  "2025-12-04": {
-    "only_status": [
-      "97"
-    ],
-    "machines": [
-      "coldboxgasado_coldbox4",
-      "pepset_vibrado"
-    ]
-  },
   "2025-12-09": {
     "only_status": [
       "102"
@@ -39,23 +22,6 @@
     "machines": [
       "coldboxgasado_coldbox4",
       "pepset_vibrado"
-    ]
-  },
-  "2025-11-27": {
-    "only_status": [
-      "90"
-    ],
-    "machines": [
-      "coldboxgasado_coldboxpequena",
-      "pepset_vibrado"
-    ]
-  },
-  "2026-01-15": {
-    "only_status": [
-      "10080"
-    ],
-    "machines": [
-      "coldboxgasado_coldboxpequena"
     ]
   },
   "2025-12-07": {
@@ -73,6 +39,25 @@
     ],
     "machines": [
       "coldboxgasado_coldbox4",
+      "pepset_vibrado"
+    ]
+  },
+  "2025-12-03": {
+    "only_status": [
+      "96"
+    ],
+    "machines": [
+      "coldboxgasado_coldbox4",
+      "pepset_chao"
+    ]
+  },
+  "2025-12-04": {
+    "only_status": [
+      "97"
+    ],
+    "machines": [
+      "coldboxgasado_coldbox4",
+      "pepset_chao",
       "pepset_vibrado"
     ]
   },
@@ -122,21 +107,31 @@
       "pepset_vibrado"
     ]
   },
+  "2025-11-27": {
+    "only_status": [
+      "90"
+    ],
+    "machines": [
+      "coldboxgasado_coldboxpequena",
+      "pepset_chao",
+      "pepset_vibrado"
+    ]
+  },
+  "2026-01-15": {
+    "only_status": [
+      "10080"
+    ],
+    "machines": [
+      "coldboxgasado_coldboxpequena",
+      "pepset_chao"
+    ]
+  },
   "2025-11-19": {
     "only_status": [
       "82"
     ],
     "machines": [
       "coldboxgasado_coldbox4",
-      "coldboxgasado_coldboxpequena",
-      "pepset_vibrado"
-    ]
-  },
-  "2025-12-11": {
-    "only_status": [
-      "104"
-    ],
-    "machines": [
       "coldboxgasado_coldboxpequena",
       "pepset_vibrado"
     ]
@@ -160,15 +155,6 @@
       "pepset_vibrado"
     ]
   },
-  "2026-01-11": {
-    "only_status": [
-      "10072"
-    ],
-    "machines": [
-      "coldboxgasado_coldboxpequena",
-      "coldboxsoprado_sopradora"
-    ]
-  },
   "2025-11-02": {
     "only_status": [
       "56"
@@ -179,14 +165,24 @@
       "pepset_vibrado"
     ]
   },
-  "2026-02-02": {
+  "2025-12-11": {
     "only_status": [
-      "10103"
+      "104"
     ],
     "machines": [
-      "coldboxgasado_coldbox4",
       "coldboxgasado_coldboxpequena",
+      "pepset_chao",
       "pepset_vibrado"
+    ]
+  },
+  "2026-01-11": {
+    "only_status": [
+      "10072"
+    ],
+    "machines": [
+      "coldboxgasado_coldboxpequena",
+      "coldboxsoprado_sopradora",
+      "pepset_chao"
     ]
   },
   "2025-11-18": {
@@ -260,14 +256,14 @@
       "pepset_vibrado"
     ]
   },
-  "2026-02-01": {
+  "2026-02-02": {
     "only_status": [
-      "10102"
+      "10103"
     ],
     "machines": [
       "coldboxgasado_coldbox4",
       "coldboxgasado_coldboxpequena",
-      "coldboxsoprado_sopradora",
+      "pepset_chao",
       "pepset_vibrado"
     ]
   },
@@ -279,6 +275,18 @@
     "machines": [
       "coldboxgasado_coldbox4",
       "coldboxgasado_coldboxpequena",
+      "pepset_vibrado"
+    ]
+  },
+  "2026-02-01": {
+    "only_status": [
+      "10102"
+    ],
+    "machines": [
+      "coldboxgasado_coldbox4",
+      "coldboxgasado_coldboxpequena",
+      "coldboxsoprado_sopradora",
+      "pepset_chao",
       "pepset_vibrado"
     ]
   },
