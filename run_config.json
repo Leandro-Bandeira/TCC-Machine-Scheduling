@@ -15,6 +15,14 @@
       "coldboxgasado_coldbox4"
     ]
   },
+  "2025-12-03": {
+    "only_status": [
+      "96"
+    ],
+    "machines": [
+      "coldboxgasado_coldbox4"
+    ]
+  },
   "2025-12-09": {
     "only_status": [
       "102"
@@ -22,6 +30,23 @@
     "machines": [
       "coldboxgasado_coldbox4",
       "pepset_vibrado"
+    ]
+  },
+  "2025-11-27": {
+    "only_status": [
+      "90"
+    ],
+    "machines": [
+      "coldboxgasado_coldboxpequena",
+      "pepset_vibrado"
+    ]
+  },
+  "2026-01-15": {
+    "only_status": [
+      "10080"
+    ],
+    "machines": [
+      "coldboxgasado_coldboxpequena"
     ]
   },
   "2025-12-07": {
@@ -40,15 +65,6 @@
     "machines": [
       "coldboxgasado_coldbox4",
       "pepset_vibrado"
-    ]
-  },
-  "2025-12-03": {
-    "only_status": [
-      "96"
-    ],
-    "machines": [
-      "coldboxgasado_coldbox4",
-      "pepset_chao"
     ]
   },
   "2025-12-04": {
@@ -107,25 +123,6 @@
       "pepset_vibrado"
     ]
   },
-  "2025-11-27": {
-    "only_status": [
-      "90"
-    ],
-    "machines": [
-      "coldboxgasado_coldboxpequena",
-      "pepset_chao",
-      "pepset_vibrado"
-    ]
-  },
-  "2026-01-15": {
-    "only_status": [
-      "10080"
-    ],
-    "machines": [
-      "coldboxgasado_coldboxpequena",
-      "pepset_chao"
-    ]
-  },
   "2025-11-19": {
     "only_status": [
       "82"
@@ -158,6 +155,16 @@
   "2025-11-02": {
     "only_status": [
       "56"
+    ],
+    "machines": [
+      "coldboxgasado_coldbox4",
+      "coldboxgasado_coldboxpequena",
+      "pepset_vibrado"
+    ]
+  },
+  "2026-02-02": {
+    "only_status": [
+      "10103"
     ],
     "machines": [
       "coldboxgasado_coldbox4",
@@ -256,14 +263,14 @@
       "pepset_vibrado"
     ]
   },
-  "2026-02-02": {
+  "2026-02-01": {
     "only_status": [
-      "10103"
+      "10102"
     ],
     "machines": [
       "coldboxgasado_coldbox4",
       "coldboxgasado_coldboxpequena",
-      "pepset_chao",
+      "coldboxsoprado_sopradora",
       "pepset_vibrado"
     ]
   },
@@ -275,18 +282,6 @@
     "machines": [
       "coldboxgasado_coldbox4",
       "coldboxgasado_coldboxpequena",
-      "pepset_vibrado"
-    ]
-  },
-  "2026-02-01": {
-    "only_status": [
-      "10102"
-    ],
-    "machines": [
-      "coldboxgasado_coldbox4",
-      "coldboxgasado_coldboxpequena",
-      "coldboxsoprado_sopradora",
-      "pepset_chao",
       "pepset_vibrado"
     ]
   },
