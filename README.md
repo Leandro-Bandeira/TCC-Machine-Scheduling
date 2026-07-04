@@ -44,11 +44,14 @@ run_config.json   ← instâncias a processar (gerado por instances_data.py)
 | `src/analysis/instances_data.py` | Varre `data/raw/`, executa `data_input_process.py` para cada data, limpa todos os `output.json` e `data/latest/` existentes, gera `data/instances.csv` e `run_config.json` filtrado por `INSTANCE_FILTERS` |
 | `src/analysis/results_data.py` | Coleta todos os `output.json` em `data/trusted/`, cruza com `input.json` e gera `data/results.csv` consolidado |
 | `tests/test_output.py` | Valida o output do otimizador: cobertura de jobs, sem sobreposição, respeitado not_before_date, setup times e resource constraint |
-| `src/heuristics/algorithms/ils.hpp/.cpp` | Método construtivo GRASP e função de avaliação da solução (sum tardiness + penalidade + ε·sum completion time), respeitando start_slots da máquina |
+| `src/heuristics/algorithms/ils.hpp/.cpp` | GRASP construtivo: distribui jobs em `count_machines` rotas paralelas; VNS aplica movimentos intra-rota sobre todas as rotas |
+| `src/heuristics/algorithms/LocalSearch.hpp/.cpp` | Movimentos intra-rota (Swap, OrOpt-1/2/3, 2-Opt) via VNS; cada movimento itera sobre todas as rotas e avalia a FO total |
 | `src/heuristics/models/job.hpp` | Struct `Job` com id, processing_slots, release_date_slot, due_date_slot, resource_id e idx |
-| `src/heuristics/models/solution.hpp` | Struct `Solution` com sequência de jobs e valor da função objetivo |
-| `src/heuristics/models/ProblemData.hpp` | Agrega jobs, setup_matrix, start_slots, H (último slot) e first_slot por instância de máquina |
-| `src/heuristics/utils/read_instance.hpp/.cpp` | Lê `input.json` e constrói `ProblemData` (jobs, setup_matrix, H, first_slot, start_slots) |
+| `src/heuristics/models/solution.hpp` | Struct `Solution` com `routes` (uma por lane/sub-máquina, cada uma `[dummy \| jobs... \| dummy]`) e valor da FO total |
+| `src/heuristics/models/ProblemData.hpp` | Agrega jobs, setup_matrix, start_slots, H, first_slot, count_machines (lanes paralelas) e big_setup |
+| `src/heuristics/utils/read_instance.hpp/.cpp` | Lê `input.json` e constrói `ProblemData` |
+| `src/heuristics/utils/objective.hpp/.cpp` | Avalia a FO total somando a FO de cada rota independentemente |
+| `src/heuristics/utils/utils.hpp/.cpp` | `printRoutes`: imprime cada rota com seus jobs e a FO total com 15 casas decimais |
 | `src/heuristics/Makefile` | Compila o executável `heuristic` em C++17 |
 
 ## Estrutura do pipeline
@@ -85,7 +88,9 @@ O `run_config.json` é gerado por `instances_data.py` e define quais datas, stat
 
 ## Heurística ILS (`src/heuristics/`)
 
-Implementação em C++17 de uma heurística construtiva GRASP para o problema de sequenciamento.
+Implementação em C++17 de uma heurística ILS para o problema de sequenciamento em máquinas paralelas.
+
+A solução é representada como `count_machines` rotas (uma por lane/sub-máquina), cada uma com a forma `[dummy | jobs... | dummy]`. A FO total é a soma das FOs de cada rota avaliadas independentemente.
 
 ### Compilar
 
@@ -108,7 +113,7 @@ Exemplo:
 ./heuristic ../../data/trusted/01122025/94/input.json 5
 ```
 
-Imprime a sequência construída e o valor da função objetivo.
+Imprime as rotas construídas (uma por lane) e o valor da função objetivo com 15 casas decimais.
 
 ### Função objetivo (heurística)
 

@@ -7,10 +7,13 @@
 
 // Implementa a fase de busca local via VNS (Variable Neighborhood Search).
 //
-// Três famílias de movimentos são exploradas como vizinhanças distintas:
-//   Swap    — troca dois jobs de posição na sequência
-//   OrOpt-k — reinsere um segmento de k jobs consecutivos em outra posição
-//   2-Opt   — inverte um segmento da sequência entre as posições i+1 e j
+// Três famílias de movimentos intra-rota são exploradas como vizinhanças distintas:
+//   Swap    — troca dois jobs de posição dentro de uma rota
+//   OrOpt-k — reinsere um segmento de k jobs consecutivos em outra posição da mesma rota
+//   2-Opt   — inverte um segmento de uma rota entre as posições i+1 e j
+//
+// Cada movimento itera sobre todas as rotas da solução e seleciona o melhor ganho global.
+// A FO candidata é avaliada sobre a solução completa (todas as rotas).
 //
 // O método algorithm() implementa o VNS: sorteia uma vizinhança da lista NL,
 // aplica best-improvement, e reseta NL se houve melhora (voltando a explorar
