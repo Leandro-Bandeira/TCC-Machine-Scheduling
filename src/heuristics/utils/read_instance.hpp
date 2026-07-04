@@ -33,4 +33,8 @@ class ReadInstance{
 
         // Retorna a lista completa de start_slots da máquina em ordem crescente.
         static std::vector<int> parse_start_slots(const json& data, const int id_machine);
+        // Retorna o número de máquinas em paralela que o recurso tem
+        static int parse_count_machines(const json& data, const int id_machine);
+
+
 };

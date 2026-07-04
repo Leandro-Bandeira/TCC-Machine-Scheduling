@@ -10,9 +10,21 @@ ProblemData ReadInstance::readData(const std::string& path, const int id_machine
     int H = parse_H(data, id_machine);
     int first_slot = parse_first_slot(data, id_machine);
     std::vector<int> start_slots = parse_start_slots(data, id_machine);
-    return ProblemData(jobs, setup_matrix, H, first_slot, start_slots);
+    int count_machines = parse_count_machines(data, id_machine);
+    int big_setup = data["big_setup"].get<int>(); // jobs que compartilham o mesmo recurso e são feitos em máquinas diferentes, devem respeitar esse setup
+    return ProblemData(jobs, setup_matrix, H, first_slot, start_slots, count_machines, big_setup);
 }
 
+// Função responsável por retornar o número de máquinas em paralela
+int ReadInstance::parse_count_machines(const json& data, const int id_machine){
+    int count_machine = -1;
+    for(const auto& machine_data : data["machines"]){
+        if(machine_data["machine_id"].get<int>() != id_machine) continue;
+        count_machine = machine_data["job_capacity"].get<int>();
+        break;
+    }
+    return count_machine;
+}
 std::vector<Job> ReadInstance::parse_jobs(const json& data, const int id_machine) {
     std::vector<Job> jobs;
     // Dummy na posição 0: setup_matrix[0][j] = 0 para todo j (sem setup antes do primeiro job)

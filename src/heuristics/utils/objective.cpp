@@ -18,6 +18,8 @@ double evaluate(const Solution& solution, const ProblemData& problem_data) {
     const int first_slot = problem_data.getFirstSlot();
     const int numJobs = problem_data.getNumJobs() - 1; // desconta o dummy
     const std::vector<int>& start_slots = problem_data.getStartSlots();
+    int count_machines = problem_data.getCountMachines();
+    int big_setup = problem_data.getBigSetup();
 
     int sum_tardiness = 0;
     int sum_jobs_not_allocated = 0;
