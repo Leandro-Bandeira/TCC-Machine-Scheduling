@@ -15,9 +15,3 @@ struct Solution{
     std::vector<std::vector<Job>> routes;
     double objective_function;
 };
-
-struct Candidate{
-    Job job;
-    int min_setup;
-    int best_route;
-};

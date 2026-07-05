@@ -7,13 +7,16 @@
 
 // Implementa a fase de busca local via VNS (Variable Neighborhood Search).
 //
-// Três famílias de movimentos intra-rota são exploradas como vizinhanças distintas:
+// Movimentos intra-rota (vizinhanças 1-5):
 //   Swap    — troca dois jobs de posição dentro de uma rota
 //   OrOpt-k — reinsere um segmento de k jobs consecutivos em outra posição da mesma rota
 //   2-Opt   — inverte um segmento de uma rota entre as posições i+1 e j
 //
-// Cada movimento itera sobre todas as rotas da solução e seleciona o melhor ganho global.
-// A FO candidata é avaliada sobre a solução completa (todas as rotas).
+// Movimento inter-rota (vizinhança 6):
+//   SwapInterRoute — troca job_i da rota m com job_j da rota l (m < l)
+//
+// Todos os movimentos avaliam a FO sobre a solução completa (todas as rotas).
+// Violações de big_setup cross-rota são penalizadas dentro de evaluate.
 //
 // O método algorithm() implementa o VNS: sorteia uma vizinhança da lista NL,
 // aplica best-improvement, e reseta NL se houve melhora (voltando a explorar
@@ -25,4 +28,5 @@ class LocalSearch{
         static bool bestImprovementOrOpt(const ProblemData& problemData, Solution& solution, int k);
         static bool bestImprovement2Opt(const ProblemData& problemData, Solution& solution);
         static void algorithm(const ProblemData& problemData, Solution& solution);
+        static bool bestImprovementSwapInterRoute(const ProblemData& problemData, Solution& solution);
 };

@@ -165,34 +165,92 @@ bool LocalSearch::bestImprovementSwap(const ProblemData &problemData, Solution &
     return false;
 }
 
+
+// ---------------------------------------------------------------------------
+// Swap Inter-Rota
+// ---------------------------------------------------------------------------
+//
+// Troca job_i da rota m com job_j da rota l (m < l), mantendo cada job na
+// mesma posição relativa dentro da rota de destino.
+//
+// Exemplo — troca rota[0][i=2] ↔ rota[1][j=1]:
+//   Antes:
+//     rota[0]: [D, a1, a2, a3, D]
+//     rota[1]: [D, b1, b2, D]
+//   Depois:
+//     rota[0]: [D, a1, b1, a3, D]
+//     rota[1]: [D, a2, b2, D]
+//
+// O movimento é simétrico: trocar (m,i,l,j) = trocar (l,j,m,i) → l começa em m+1.
+// A FO é avaliada sobre a solução completa (ambas as rotas modificadas + demais inalteradas).
+// O big_setup cross-rota é verificado dentro de evaluate — se violado, FO sobe e o
+// movimento é descartado naturalmente.
+// Os dummies nas pontas nunca são movidos: i e j partem de 1.
+bool LocalSearch::bestImprovementSwapInterRoute(const ProblemData &problemData, Solution &solution){
+    double bestDelta = solution.objective_function;
+    int best_route_m = -1, best_route_l = -1, best_i = -1, best_j = -1;
+
+    for(int m = 0; m < (int)solution.routes.size() - 1; m++){
+        std::vector<Job> route_m = solution.routes[m];
+        for(int l = m + 1; l < (int)solution.routes.size(); l++){
+            std::vector<Job> route_l = solution.routes[l];
+            for(int i = 1; i < (int)route_m.size() - 1; i++){
+                for(int j = 1; j < (int)route_l.size() - 1; j++){
+                    std::swap(route_m[i], route_l[j]); // Troca entre rotas
+                    Solution temp = solution;
+                    temp.routes[m] = route_m;
+                    temp.routes[l] = route_l;
+                    double delta = evaluate(temp, problemData);
+
+                    if(delta < bestDelta){
+                        bestDelta = delta;
+                        best_route_m = m;
+                        best_route_l = l;
+                        best_i = i;
+                        best_j = j;
+                    }
+                    std::swap(route_m[i], route_l[j]); // Desfaz a troca
+                }
+            }
+        }
+    }
+    if(best_route_m != -1){
+        std::swap(solution.routes[best_route_m][best_i], solution.routes[best_route_l][best_j]);
+        solution.objective_function = bestDelta;
+        return true;
+    }
+    return false;
+}
 // ---------------------------------------------------------------------------
 // VNS — Variable Neighborhood Search
 // ---------------------------------------------------------------------------
 //
-// Explora 5 vizinhanças em ordem aleatória:
-//   1 = Swap      2 = OrOpt-1      3 = 2-Opt      4 = OrOpt-2      5 = OrOpt-3
+// Explora 6 vizinhanças em ordem aleatória:
+//   1 = Swap        2 = OrOpt-1      3 = 2-Opt
+//   4 = OrOpt-2     5 = OrOpt-3      6 = SwapInterRoute
 //
 // Regra de atualização:
 //   - Se a vizinhança sorteada melhorou a solução → reseta NL (volta a explorar todas)
 //   - Se não melhorou → remove essa vizinhança de NL (O(1) via swap+pop_back)
 // Termina quando NL fica vazia: ótimo local em todas as vizinhanças simultaneamente.
 void LocalSearch::algorithm(const ProblemData &problemData, Solution &solution){
-    std::vector<int> NL = {1, 2, 3, 4, 5};
+    std::vector<int> NL = {1, 2, 3, 4, 5, 6};
     bool improved = false;
 
     while(!NL.empty()){
         int n = std::rand() % NL.size();
         switch(NL[n]){
-            case 1: improved = bestImprovementSwap(problemData, solution);       break;
-            case 2: improved = bestImprovementOrOpt(problemData, solution, 1);   break;
-            case 3: improved = bestImprovement2Opt(problemData, solution);        break;
-            case 4: improved = bestImprovementOrOpt(problemData, solution, 2);   break;
-            case 5: improved = bestImprovementOrOpt(problemData, solution, 3);   break;
+            case 1: improved = bestImprovementSwap(problemData, solution);              break;
+            case 2: improved = bestImprovementOrOpt(problemData, solution, 1);          break;
+            case 3: improved = bestImprovement2Opt(problemData, solution);              break;
+            case 4: improved = bestImprovementOrOpt(problemData, solution, 2);          break;
+            case 5: improved = bestImprovementOrOpt(problemData, solution, 3);          break;
+            case 6: improved = bestImprovementSwapInterRoute(problemData, solution);    break;
         }
         if(improved){
-            std::string labels[] = {"", "Swap", "OrOpt1", "2Opt", "OrOpt2", "OrOpt3"};
-            std::cout << "[improved] " << labels[NL[n]] << " → FO=" << solution.objective_function << std::endl;
-            NL = {1, 2, 3, 4, 5};
+            std::string labels[] = {"", "Swap", "OrOpt1", "2Opt", "OrOpt2", "OrOpt3", "SwapInterRoute"};
+            std::cout << "[improved] " << labels[NL[n]] << " → FO=" << std::setprecision(15) << solution.objective_function << "\n";
+            NL = {1, 2, 3, 4, 5, 6};
         }else{
             std::swap(NL[n], NL.back());
             NL.pop_back();

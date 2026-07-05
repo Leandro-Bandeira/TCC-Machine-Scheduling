@@ -12,8 +12,11 @@ void printRoutes(const Solution& solution){
         for(const auto& job : route){
             if(job.idx == 0) { std::cout << "[D]"; continue; }
             std::cout << "[id=" << job.id
+                      << " res=" << job.resource_id
                       << " rel=" << job.release_date_slot
-                      << " due=" << job.due_date_slot << "]";
+                      << " due=" << job.due_date_slot
+                      << " start=" << job.start
+                      << " end=" << job.end << "]";
         }
         std::cout << "\n";
     }

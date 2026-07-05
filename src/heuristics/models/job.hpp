@@ -10,7 +10,9 @@ class Job{
         int due_date_slot;    // Slot de vencimento — atrasos além deste geram tardiness
         int resource_id;      // Tipo de recurso/família do job (usado para calcular setup)
         int idx;              // Índice interno na matriz de setup (0 = dummy job)
+        int start;            // Slot de início agendado (-1 = não alocado), populado por evaluate
+        int end;              // Slot de término agendado (-1 = não alocado), populado por evaluate
 
         Job(int id, int processing_slots, int release_date_slot, int due_date_slot, int resource_id, int idx)
-            : id(id), processing_slots(processing_slots), release_date_slot(release_date_slot), due_date_slot(due_date_slot), resource_id(resource_id), idx(idx) {}
+            : id(id), processing_slots(processing_slots), release_date_slot(release_date_slot), due_date_slot(due_date_slot), resource_id(resource_id), idx(idx), start(-1), end(-1) {}
 };
