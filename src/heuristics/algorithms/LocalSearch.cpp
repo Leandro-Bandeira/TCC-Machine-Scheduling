@@ -221,20 +221,88 @@ bool LocalSearch::bestImprovementSwapInterRoute(const ProblemData &problemData, 
     }
     return false;
 }
+
 // ---------------------------------------------------------------------------
-// VNS — Variable Neighborhood Search
+// Realocate Inter-Rota
 // ---------------------------------------------------------------------------
 //
-// Explora 6 vizinhanças em ordem aleatória:
+// Remove job_i da rota m e o insere na posição j da rota l (m ≠ l).
+//
+// Exemplo — move rota[0][i=2] para rota[1][j=1]:
+//   Antes:
+//     rota[0]: [D, a1, a2, a3, D]
+//     rota[1]: [D, b1, b2, D]
+//   Depois:
+//     rota[0]: [D, a1, a3, D]
+//     rota[1]: [D, a2, b1, b2, D]
+//
+// O movimento é assimétrico: mover (m→l) ≠ mover (l→m) → itera todos os pares m≠l.
+// j varia de 1 até route_l.size()-1 inclusive: posições válidas antes do dummy final.
+// Para cada job i, temp_m é construído fora do loop j (erase feito uma vez só).
+// A FO é avaliada sobre a solução completa (ambas as rotas modificadas + demais inalteradas).
+// O big_setup cross-rota é verificado dentro de evaluate — se violado, FO sobe e o
+// movimento é descartado naturalmente.
+bool LocalSearch::bestImprovementRealocate(const ProblemData &problemData, Solution &solution){
+    double bestDelta = solution.objective_function;
+    int best_route_m = -1, best_route_l = -1, best_i = -1, best_j = -1;
+    for(int m = 0; m < (int)solution.routes.size(); m++){
+        const std::vector<Job>& route_m = solution.routes[m];
+        for(int l = 0; l < (int)solution.routes.size(); l++){
+            if(m==l) continue;
+
+            const std::vector<Job>&route_l = solution.routes[l];
+            for(int i = 1; i < (int)route_m.size() - 1; i++){
+                std::vector<Job> temp_m = route_m;
+                Job job = temp_m[i];
+                temp_m.erase(temp_m.begin() + i);
+                for(int j = 1; j <= (int)route_l.size() - 1; j++){
+
+                    std::vector<Job> temp_l = route_l;
+                    temp_l.insert(temp_l.begin() + j, job);
+
+                    Solution temp = solution;
+                    temp.routes[m] = temp_m;
+                    temp.routes[l] = temp_l;
+
+                    double delta = evaluate(temp, problemData);
+
+                    if (delta < bestDelta){
+                        bestDelta = delta;
+                        best_route_m = m;
+                        best_route_l = l;
+                        best_i = i;
+                        best_j = j;
+                    }
+                }
+            }
+        }
+    }
+
+    if (best_route_m != -1){
+        Job job = solution.routes[best_route_m][best_i];
+        solution.routes[best_route_m].erase(solution.routes[best_route_m].begin() + best_i);
+        solution.routes[best_route_l].insert(solution.routes[best_route_l].begin() + best_j, job);
+        solution.objective_function = bestDelta;
+        return true;
+    }
+    return false;
+}
+// ---------------------------------------------------------------------------
+// RVND — Random Variable Neighborhood Descent
+// ---------------------------------------------------------------------------
+//
+// Explora 7 vizinhanças em ordem aleatória:
 //   1 = Swap        2 = OrOpt-1      3 = 2-Opt
-//   4 = OrOpt-2     5 = OrOpt-3      6 = SwapInterRoute
+//   4 = OrOpt-2     5 = OrOpt-3      6 = SwapInterRoute   7 = Realocate
 //
 // Regra de atualização:
-//   - Se a vizinhança sorteada melhorou a solução → reseta NL (volta a explorar todas)
-//   - Se não melhorou → remove essa vizinhança de NL (O(1) via swap+pop_back)
-// Termina quando NL fica vazia: ótimo local em todas as vizinhanças simultaneamente.
+//   - Sorteia vizinhança aleatória de NL
+//   - Aplica best-improvement (descida): avalia todos os movimentos da vizinhança,
+//     aplica o melhor se melhora a FO → reseta NL (volta a explorar todas)
+//   - Se não melhorou → remove vizinhança de NL em O(1) via swap+pop_back
+// Termina quando NL fica vazia: ótimo local simultâneo em todas as vizinhanças.
 void LocalSearch::algorithm(const ProblemData &problemData, Solution &solution){
-    std::vector<int> NL = {1, 2, 3, 4, 5, 6};
+    std::vector<int> NL = {1, 2, 3, 4, 5, 6, 7};
     bool improved = false;
 
     while(!NL.empty()){
@@ -246,11 +314,12 @@ void LocalSearch::algorithm(const ProblemData &problemData, Solution &solution){
             case 4: improved = bestImprovementOrOpt(problemData, solution, 2);          break;
             case 5: improved = bestImprovementOrOpt(problemData, solution, 3);          break;
             case 6: improved = bestImprovementSwapInterRoute(problemData, solution);    break;
+            case 7: improved = bestImprovementRealocate(problemData, solution);         break;
         }
         if(improved){
-            std::string labels[] = {"", "Swap", "OrOpt1", "2Opt", "OrOpt2", "OrOpt3", "SwapInterRoute"};
+            std::string labels[] = {"", "Swap", "OrOpt1", "2Opt", "OrOpt2", "OrOpt3", "SwapInterRoute", "Realocate"};
             std::cout << "[improved] " << labels[NL[n]] << " → FO=" << std::setprecision(15) << solution.objective_function << "\n";
-            NL = {1, 2, 3, 4, 5, 6};
+            NL = {1, 2, 3, 4, 5, 6, 7} ;
         }else{
             std::swap(NL[n], NL.back());
             NL.pop_back();
