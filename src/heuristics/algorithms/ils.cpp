@@ -3,6 +3,7 @@
 #include "../utils/objective.hpp"
 #include "../utils/utils.hpp"
 #include "LocalSearch.hpp"
+#include <cmath>
 #include <map>
 #include <algorithm>
 #include <iostream>
@@ -20,8 +21,8 @@
 //
 // Isso introduz diversificação: ao variar o tamanho da RCL entre 1 e |CL|,
 // a construção oscila entre totalmente gulosa (alpha=1) e aleatória (alpha=|CL|).
-void ILS::construction(){
-    Solution& solution = this->solution;
+Solution ILS::construction(){
+    Solution solution;
     const std::vector<Job>& jobs = this->problem_data.getJobs();
     const std::vector<std::vector<int>>& setup_matrix = this->problem_data.getSetupMatrix();
     const int count_machines = this->problem_data.getCountMachines();
@@ -75,10 +76,86 @@ void ILS::construction(){
 
     solution.objective_function = evaluate(solution, this->problem_data);
     printRoutes(solution);
+    return solution;
 }
 
+Solution ILS::perturbation(Solution solution){
+
+    /*
+     * (l, l')-block swap intra-machine
+     * Perturbação obrigatória intra-máquina
+     * Vamos escolher dois tamanhos aleatórios (l, l') tal que l, l' = {2, ..., n/4}
+     * e realizar um swap entre esses dois blocos
+     */
+
+    int lower = 2;
+
+    for(int m = 0; m < (int)solution.routes.size(); m++){
+        std::vector<Job> current_route = solution.routes[m];
+
+        // Precisamos retirar os jobs dummy
+        int N = (int)current_route.size() - 2;
+        int upper = N / 4;
+
+        if (upper < 2) continue;
+
+        int l  = lower + std::rand() % (upper - lower + 1); // [2, N/4]
+        int lp = lower + std::rand() % (upper - lower + 1); // [2, N/4]
+
+        // índices reais: 1..N (excluindo dummies em 0 e size-1)
+        int i = 1 + std::rand() % (N - l + 1);  // início bloco A
+        int j_min = i + l;                        // B não pode sobrepor A
+        int j_max = N - lp + 1;                  // B cabe na rota
+
+        if (j_min > j_max) continue;
+
+        int j = j_min + std::rand() % (j_max - j_min + 1); // início bloco B
+
+        // swap blocos de tamanhos possivelmente diferentes: reconstrói a rota
+        std::vector<Job> new_route;
+        new_route.reserve(current_route.size());
+
+        for (int k = 0;       k < i;                        k++) new_route.push_back(current_route[k]); // antes de A
+        for (int k = j;       k < j + lp;                   k++) new_route.push_back(current_route[k]); // B no lugar de A
+        for (int k = i + l;   k < j;                        k++) new_route.push_back(current_route[k]); // entre A e B
+        for (int k = i;       k < i + l;                    k++) new_route.push_back(current_route[k]); // A no lugar de B
+        for (int k = j + lp;  k < (int)current_route.size(); k++) new_route.push_back(current_route[k]); // depois de B
+
+        solution.routes[m] = new_route;
+    }
+
+    solution.objective_function = evaluate(solution, problem_data);
+    return solution;
+}
 void ILS::algorithm(){
+
     std::srand(time(0));
-    this->construction();
-    LocalSearch::algorithm(this->problem_data, this->solution);
+
+    Solution bestAllSolution;
+
+
+    for(int i = 0; i < this->m_maxIter; i++){
+        Solution s = construction();
+
+        Solution best = s;
+
+        int iterILS = 0;
+        while(iterILS <= this->m_maxIterILS){
+            s = LocalSearch::algorithm(problem_data, s);
+
+            if(s.objective_function < best.objective_function){
+                best = s;
+                iterILS = 0;
+            }
+            s = perturbation(best);
+            iterILS++;
+        }
+
+        if(best.objective_function < bestAllSolution.objective_function){
+            bestAllSolution = best;
+        }
+    }
+
+    printRoutes(bestAllSolution);
+    this->solution = bestAllSolution;
 }

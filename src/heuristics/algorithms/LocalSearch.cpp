@@ -301,7 +301,7 @@ bool LocalSearch::bestImprovementRealocate(const ProblemData &problemData, Solut
 //     aplica o melhor se melhora a FO → reseta NL (volta a explorar todas)
 //   - Se não melhorou → remove vizinhança de NL em O(1) via swap+pop_back
 // Termina quando NL fica vazia: ótimo local simultâneo em todas as vizinhanças.
-void LocalSearch::algorithm(const ProblemData &problemData, Solution &solution){
+Solution LocalSearch::algorithm(const ProblemData &problemData, Solution solution){
     std::vector<int> NL = {1, 2, 3, 4, 5, 6, 7};
     bool improved = false;
 
@@ -326,4 +326,5 @@ void LocalSearch::algorithm(const ProblemData &problemData, Solution &solution){
         }
     }
     printRoutes(solution);
+    return solution;
 }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cmath>
 #include <vector>
 #include "job.hpp"
 
@@ -13,5 +14,5 @@
 // A FO total é a soma das FOs de cada rota avaliadas independentemente.
 struct Solution{
     std::vector<std::vector<Job>> routes;
-    double objective_function;
+    double objective_function = MAXFLOAT;
 };
