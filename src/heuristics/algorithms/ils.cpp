@@ -75,7 +75,6 @@ Solution ILS::construction(){
     }
 
     solution.objective_function = evaluate(solution, this->problem_data);
-    printRoutes(solution);
     return solution;
 }
 
@@ -115,10 +114,10 @@ Solution ILS::perturbation(Solution solution){
         std::vector<Job> new_route;
         new_route.reserve(current_route.size());
 
-        for (int k = 0;       k < i;                        k++) new_route.push_back(current_route[k]); // antes de A
-        for (int k = j;       k < j + lp;                   k++) new_route.push_back(current_route[k]); // B no lugar de A
-        for (int k = i + l;   k < j;                        k++) new_route.push_back(current_route[k]); // entre A e B
-        for (int k = i;       k < i + l;                    k++) new_route.push_back(current_route[k]); // A no lugar de B
+        for (int k = 0;       k < i; k++) new_route.push_back(current_route[k]); // antes de A
+        for (int k = j;       k < j + lp; k++) new_route.push_back(current_route[k]); // B no lugar de A
+        for (int k = i + l;   k < j; k++) new_route.push_back(current_route[k]); // entre A e B
+        for (int k = i;       k < i + l; k++) new_route.push_back(current_route[k]); // A no lugar de B
         for (int k = j + lp;  k < (int)current_route.size(); k++) new_route.push_back(current_route[k]); // depois de B
 
         solution.routes[m] = new_route;
@@ -127,13 +126,26 @@ Solution ILS::perturbation(Solution solution){
     solution.objective_function = evaluate(solution, problem_data);
     return solution;
 }
+
+/*
+ * ILS (Iterated Local Search) com multi-start via GRASP.
+ *
+ * Para cada iteração externa (m_maxIter):
+ *   1. construction()        — constrói solução inicial aleatória (GRASP)
+ *   2. LocalSearch()         — desce até ótimo local; resultado vira `best`
+ *   3. Loop ILS (m_maxIterILS):
+ *      a. perturbation(best) — escapa do ótimo local via block-swap intra-máquina
+ *      b. LocalSearch()      — desce até novo ótimo local
+ *      c. se melhorou `best`: atualiza e reseta contador (aceita apenas melhora)
+ *   4. se `best` < `bestAllSolution`: atualiza o melhor global
+ *
+ * Critério de aceitação: best-improvement puro (sem aceitar piora).
+ */
 void ILS::algorithm(){
 
     std::srand(time(0));
 
     Solution bestAllSolution;
-
-
     for(int i = 0; i < this->m_maxIter; i++){
         Solution s = construction();
 

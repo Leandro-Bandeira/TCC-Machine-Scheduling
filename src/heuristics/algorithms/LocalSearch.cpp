@@ -317,14 +317,11 @@ Solution LocalSearch::algorithm(const ProblemData &problemData, Solution solutio
             case 7: improved = bestImprovementRealocate(problemData, solution);         break;
         }
         if(improved){
-            std::string labels[] = {"", "Swap", "OrOpt1", "2Opt", "OrOpt2", "OrOpt3", "SwapInterRoute", "Realocate"};
-            std::cout << "[improved] " << labels[NL[n]] << " → FO=" << std::setprecision(15) << solution.objective_function << "\n";
-            NL = {1, 2, 3, 4, 5, 6, 7} ;
+            NL = {1, 2, 3, 4, 5, 6, 7};
         }else{
             std::swap(NL[n], NL.back());
             NL.pop_back();
         }
     }
-    printRoutes(solution);
     return solution;
 }
