@@ -21,8 +21,8 @@ RUN_CONFIG_JSON = BASE_DIR / "run_config.json"
 # Cada tupla: (job_capacity, min_jobs, max_jobs)
 # Instâncias que não casam com nenhuma tupla são ignoradas.
 INSTANCE_FILTERS: list[tuple[int, int, int]] = [
-    (2, 5, 15),
-    (1, 4, 37),
+    (2, 5, 25),
+    (1, 4, 50),
 ]
 SKIP_EXISTING_OUTPUT = False  # True: ignora dt/status que já têm output.json
 

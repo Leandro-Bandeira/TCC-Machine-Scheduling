@@ -381,7 +381,7 @@ class TimeIndex:
 
     def _solve_with_gurobi(self, model):
         solver = pyo.SolverFactory("gurobi")
-        solver.options["TimeLimit"] = 5
+        #solver.options["TimeLimit"] = 5
         _t0 = perf_counter()
         result = solver.solve(model, tee=True)
         self.solve_time = perf_counter() - _t0
