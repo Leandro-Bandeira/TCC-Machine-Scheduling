@@ -265,7 +265,8 @@ class TimeIndex:
             ]
         }
 
-    def optimize(self):
+    def optimize(self, use_gurobi: bool = False):
+        self._use_gurobi = use_gurobi
         model = self.model
         jobs_data = self.jobs_data
 
@@ -345,6 +346,15 @@ class TimeIndex:
 
         model.write("model.lp", io_options={"symbolic_solver_labels": True})
 
+        if self._use_gurobi:
+            self._solve_with_gurobi(model)
+        else:
+            self._solve_with_highs(model)
+
+        print(self.termination_condition)
+        print(f"{self.objective_type}: {self.objective_value} (gap={self.mip_gap})")
+
+    def _solve_with_highs(self, model):
         solver = HiGHS()
         solver.config.load_solutions = False
         solver.config.raise_exception_on_nonoptimal_result = False
@@ -358,13 +368,7 @@ class TimeIndex:
         has_solution = result.incumbent_objective is not None
         if has_solution:
             result.solution_loader.load_vars()
-            if self.objective_type == "c_max":
-                self.objective_value = pyo.value(model.C_max)
-            elif self.objective_type == "sum_tardiness":
-                self.objective_value = pyo.value(model.objective)
-            else:
-                self.objective_value = pyo.value(model.objective_expr)
-
+            self.objective_value = self._read_objective(model)
             incumbent = result.incumbent_objective
             bound = result.objective_bound
             if incumbent != 0 and bound is not None:
@@ -375,14 +379,42 @@ class TimeIndex:
             self.objective_value = None
             self.mip_gap = None
 
-        print(self.termination_condition)
-        print(f"{self.objective_type}: {self.objective_value} (gap={self.mip_gap})")
+    def _solve_with_gurobi(self, model):
+        solver = pyo.SolverFactory("gurobi")
+        solver.options["TimeLimit"] = 5
+        _t0 = perf_counter()
+        result = solver.solve(model, tee=True)
+        self.solve_time = perf_counter() - _t0
+        self.termination_condition = str(result.solver.termination_condition)
+
+        upper = result.problem[0].upper_bound
+        lower = result.problem[0].lower_bound
+        has_solution = upper is not None and upper < float("inf")
+
+        if has_solution:
+            self.objective_value = self._read_objective(model)
+            if upper != 0 and lower is not None:
+                self.mip_gap = round(abs(upper - lower) / abs(upper), 6)
+            else:
+                self.mip_gap = None
+        else:
+            self.objective_value = None
+            self.mip_gap = None
+
+    def _read_objective(self, model):
+        if self.objective_type == "c_max":
+            return pyo.value(model.C_max)
+        elif self.objective_type == "sum_tardiness":
+            return pyo.value(model.objective)
+        else:
+            return pyo.value(model.objective_expr)
 
 
 def main(
     data_input_path: Path,
     data_output_path: Path,
     only_machines: list[str] | None = None,
+    use_gurobi: bool = False,
 ):
     with open(data_input_path, "r") as f:
         data = json.load(f)
@@ -419,7 +451,7 @@ def main(
             resources_data=machine_resources,
             big_setup=big_setup,
         )
-        time_index_model.optimize()
+        time_index_model.optimize(use_gurobi=use_gurobi)
 
         output = time_index_model.generate_output()
         all_machine_schedules.extend(output["machines_scheduling"])
@@ -461,6 +493,12 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Lista de nomes de máquinas a otimizar. Se omitido, otimiza todas.",
     )
+    parser.add_argument(
+        "--use-gurobi",
+        action="store_true",
+        default=False,
+        help="Usa Gurobi como solver em vez de HiGHS.",
+    )
     return parser.parse_args()
 
 
@@ -501,4 +539,5 @@ if __name__ == "__main__":
             data_input_path=data_input_path,
             data_output_path=data_output_path,
             only_machines=args.only_machines,
+            use_gurobi=args.use_gurobi,
         )

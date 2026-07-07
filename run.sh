@@ -6,10 +6,12 @@ cd "$(dirname "$0")"
 
 CONFIG="run_config.json"
 SKIP_EXISTING=false
+USE_GUROBI=false
 
 for arg in "$@"; do
   case "$arg" in
     --skip-existing) SKIP_EXISTING=true ;;
+    --use-gurobi) USE_GUROBI=true ;;
     *) CONFIG="$arg" ;;
   esac
 done
@@ -70,9 +72,14 @@ while IFS='|' read -r DT STATUSES MACHINES; do
   echo ">>> [1/3] data_input_process.py"
   python3 src/main/data_input_process.py --dt "$DT" $ONLY_STATUS_ARG
 
+  GUROBI_ARG=""
+  if [ "$USE_GUROBI" = true ]; then
+    GUROBI_ARG="--use-gurobi"
+  fi
+
   echo ""
   echo ">>> [2/3] optimize.py"
-  python3 src/main/optimize.py --dt "$DT" $ONLY_STATUS_ARG $ONLY_MACHINES_ARG
+  python3 src/main/optimize.py --dt "$DT" $ONLY_STATUS_ARG $ONLY_MACHINES_ARG $GUROBI_ARG
 
   echo ""
   echo ">>> [3/3] data_output_process.py"
