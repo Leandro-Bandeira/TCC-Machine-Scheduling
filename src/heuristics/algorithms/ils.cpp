@@ -4,6 +4,7 @@
 #include "../utils/utils.hpp"
 #include "LocalSearch.hpp"
 #include <cmath>
+#include <iomanip>
 #include <map>
 #include <algorithm>
 #include <iostream>
@@ -87,43 +88,83 @@ Solution ILS::perturbation(Solution solution){
      * e realizar um swap entre esses dois blocos
      */
 
-    int lower = 2;
+    int count_routes = (int)solution.routes.size();
 
-    for(int m = 0; m < (int)solution.routes.size(); m++){
-        std::vector<Job> current_route = solution.routes[m];
+    if(count_routes == 1){
+        int lower = 2;
+        std::vector<Job>& current_route = solution.routes[0];
 
         // Precisamos retirar os jobs dummy
         int N = (int)current_route.size() - 2;
         int upper = N / 4;
 
-        if (upper < 2) continue;
+        if (upper >= 2) {
+            int l  = lower + std::rand() % (upper - lower + 1); // [2, N/4]
+            int lp = lower + std::rand() % (upper - lower + 1); // [2, N/4]
 
-        int l  = lower + std::rand() % (upper - lower + 1); // [2, N/4]
-        int lp = lower + std::rand() % (upper - lower + 1); // [2, N/4]
+            // índices reais: 1..N (excluindo dummies em 0 e size-1)
+            int i = 1 + std::rand() % (N - l + 1);  // início bloco A
+            int j_min = i + l;                        // B não pode sobrepor A
+            int j_max = N - lp + 1;                  // B cabe na rota
 
-        // índices reais: 1..N (excluindo dummies em 0 e size-1)
-        int i = 1 + std::rand() % (N - l + 1);  // início bloco A
-        int j_min = i + l;                        // B não pode sobrepor A
-        int j_max = N - lp + 1;                  // B cabe na rota
+            if (j_min <= j_max) {
+                int j = j_min + std::rand() % (j_max - j_min + 1); // início bloco B
 
-        if (j_min > j_max) continue;
+                // swap blocos de tamanhos possivelmente diferentes: reconstrói a rota
+                std::vector<Job> new_route;
+                new_route.reserve(current_route.size());
 
-        int j = j_min + std::rand() % (j_max - j_min + 1); // início bloco B
+                for (int k = 0;       k < i; k++) new_route.push_back(current_route[k]); // antes de A
+                for (int k = j;       k < j + lp; k++) new_route.push_back(current_route[k]); // B no lugar de A
+                for (int k = i + l;   k < j; k++) new_route.push_back(current_route[k]); // entre A e B
+                for (int k = i;       k < i + l; k++) new_route.push_back(current_route[k]); // A no lugar de B
+                for (int k = j + lp;  k < (int)current_route.size(); k++) new_route.push_back(current_route[k]); // depois de B
 
-        // swap blocos de tamanhos possivelmente diferentes: reconstrói a rota
-        std::vector<Job> new_route;
-        new_route.reserve(current_route.size());
-
-        for (int k = 0;       k < i; k++) new_route.push_back(current_route[k]); // antes de A
-        for (int k = j;       k < j + lp; k++) new_route.push_back(current_route[k]); // B no lugar de A
-        for (int k = i + l;   k < j; k++) new_route.push_back(current_route[k]); // entre A e B
-        for (int k = i;       k < i + l; k++) new_route.push_back(current_route[k]); // A no lugar de B
-        for (int k = j + lp;  k < (int)current_route.size(); k++) new_route.push_back(current_route[k]); // depois de B
-
-        solution.routes[m] = new_route;
+                current_route = new_route;
+            }
+        }
     }
+    else{
+        /*
+        * Multiple (1 , 1)- Insertion inter-machine
+        * A ideia aqui é uma rota aleatoria, dessa rota escolher um job aleatório
+        * Escolher outra rota aleatório e outro job aleatória dessa rota e trocar esses dois jobs
+        */
+        int max_repeat_perturbation = 3;
+        int repeat_perturbation = (std::rand() % max_repeat_perturbation) + 1;
 
+        int count_repeat = 0;
+        while(count_repeat < repeat_perturbation){
+
+            /* Escolhe duas rotas diferentes */
+            int k = std::rand() % count_routes;
+            int kp;
+            do{
+                kp = std::rand() % count_routes;
+            }while(kp == k);
+            std::vector<Job> route_k = solution.routes[k];
+            std::vector<Job> route_kp = solution.routes[kp];
+
+            /* Sem job real pra trocar (só dummies) */
+            if((int)route_k.size() <= 2 || (int)route_kp.size() <= 2){
+                count_repeat++;
+                continue;
+            }
+
+            /* Seleciona indice aleatorio das rotas, impedindo que selecione o job dummy */
+            int j = 1 + std::rand() % ((int)route_k.size() - 2);
+            int jp = 1 + std::rand() % ((int)route_kp.size() - 2);
+
+            std::swap(route_k[j], route_kp[jp]);
+
+            solution.routes[k] = route_k;
+            solution.routes[kp] = route_kp;
+            count_repeat++;
+        }
+    }
     solution.objective_function = evaluate(solution, problem_data);
+
+    std::cout << "Função objetivo após a perturbação: " << std::setprecision(15) << solution.objective_function << std::endl;
     return solution;
 }
 
