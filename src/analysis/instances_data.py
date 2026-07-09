@@ -22,9 +22,9 @@ RUN_CONFIG_JSON = BASE_DIR / "run_config.json"
 # Instâncias que não casam com nenhuma tupla são ignoradas.
 INSTANCE_FILTERS: list[tuple[int, int, int]] = [
     (2, 5, 25),
-    (1, 4, 50),
+    (1, 4, 30),
 ]
-SKIP_EXISTING_OUTPUT = False  # True: ignora dt/status que já têm output.json
+SKIP_EXISTING_OUTPUT = True  # True: ignora dt/status que já têm output.json
 
 PYTHON = sys.executable
 
