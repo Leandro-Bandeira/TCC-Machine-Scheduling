@@ -29,6 +29,8 @@ FIELDNAMES = [
     "status",
     "machine_id",
     "machine_name",
+    "count_jobs",
+    "count_machines",
     "mip_fo",
     "heuristic_fo",
     "fo_diff",
@@ -91,6 +93,18 @@ def collect_comparisons(run_config: dict) -> list[dict]:
             machine_name_by_id = {
                 m["machine_id"]: m["machine_name"] for m in input_data.get("machines", [])
             }
+            job_capacity_by_id = {
+                m["machine_id"]: m["job_capacity"] for m in input_data.get("machines", [])
+            }
+
+            # jobs_per_machine só conta jobs ainda não processados (Status_Processed vazio),
+            # que são os que de fato entram no sequenciamento — igual read_instance.cpp::parse_jobs
+            jobs_per_machine: dict[int, int] = {}
+            for job in input_data.get("jobs", []):
+                if job.get("Status_Processed", "") != "":
+                    continue
+                m_id = job["assigned_machine_id"]
+                jobs_per_machine[m_id] = jobs_per_machine.get(m_id, 0) + 1
 
             for mach in output_data.get("machines_scheduling", []):
                 machine_id = mach["machine_id"]
@@ -98,6 +112,9 @@ def collect_comparisons(run_config: dict) -> list[dict]:
 
                 if machine_name not in machines_wanted:
                     continue
+
+                count_jobs = jobs_per_machine.get(machine_id, 0)
+                count_machines = job_capacity_by_id.get(machine_id)
 
                 mip_fo = mach.get("objective_function")
                 mip_time = mach.get("solve_time_seconds")
@@ -119,6 +136,8 @@ def collect_comparisons(run_config: dict) -> list[dict]:
                         "status": status,
                         "machine_id": machine_id,
                         "machine_name": machine_name,
+                        "count_jobs": count_jobs,
+                        "count_machines": count_machines,
                         "mip_fo": mip_fo,
                         "heuristic_fo": heuristic_fo,
                         "fo_diff": fo_diff,
@@ -129,7 +148,8 @@ def collect_comparisons(run_config: dict) -> list[dict]:
                     }
                 )
                 print(
-                    f"  fo: mip={mip_fo:.6f} heuristic={heuristic_fo:.6f} diff={fo_diff:+.6f} ({fo_diff_pct:+.2f}%)"
+                    f"  jobs={count_jobs} machines={count_machines}"
+                    f" | fo: mip={mip_fo:.6f} heuristic={heuristic_fo:.6f} diff={fo_diff:+.6f} ({fo_diff_pct:+.2f}%)"
                     f" | tempo: mip={mip_time:.3f}s heuristic={heuristic_time:.3f}s diff={time_diff:+.3f}s"
                 )
 

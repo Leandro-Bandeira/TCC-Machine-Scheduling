@@ -1,0 +1,15 @@
+{
+    "tee": false,
+    "solver_gap_name": "highs",
+    "solver_time_index_name": "gurobi",
+    "config": {"TimeLimit": 1200, "MIPGap": 0.00, "MIPFocus": 1},
+    "machine_models": {
+        "pepset_carrossel": "gap",
+        "pepset_chao": "gap",
+        "coldboxgasado_coldbox4": "gap",
+        "coldboxgasado_coldboxpequena": "gap",
+        "coldboxsoprado_sopradora": "gap",
+        "pepset_vibrado": "gap",
+        "shell_shell": "gap"
+    }
+}
