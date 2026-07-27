@@ -232,6 +232,10 @@ void ILS::algorithm(){
         }
     }
 
+    // LocalSearch só atualiza objective_function após cada movimento, sem re-executar
+    // evaluate() na solução real (roda apenas em cópias temporárias). Por isso job.start/end
+    // ficam desatualizados em relação à ordem final das rotas — resincroniza aqui antes de reportar.
+    evaluate(bestAllSolution, problem_data);
     printRoutes(bestAllSolution);
     this->solution = bestAllSolution;
 }

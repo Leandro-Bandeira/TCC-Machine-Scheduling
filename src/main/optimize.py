@@ -35,26 +35,14 @@ class TimeIndex:
 
         # Simula pior caso nos start_slots reais: n jobs em sequência com max_setup e max_processing
         # snappando sempre para o próximo start_slot disponível
+        #
+        # Desativado: a simulação assume as n jobs rodando sequencialmente numa lane só
+        # (ignora count_machines/job_capacity), então um único job outlier de processing_slots
+        # alto já estoura o horizonte na 1ª iteração e trava h_effective bem cedo, cortando
+        # time_slots_job de jobs que na verdade caberiam (usando as lanes em paralelo).
+        # Usa o horizonte real (H = start_slots[-1]) até essa simulação ser corrigida.
         start_slots = self.machine_data.start_slots
-        if self.jobs_data and start_slots:
-            all_setups = [
-                v for targets in setup_data.values() for v in targets.values()
-            ]
-            max_setup = max(all_setups) if all_setups else 0
-            max_processing = max(job.processing_slots for job in self.jobs_data)
-            max_release = max(job.release_date_slot for job in self.jobs_data)
-            n = len(self.jobs_data)
-
-            current = max_release
-            h_effective = start_slots[0]
-            for _ in range(n):
-                idx = bisect_left(start_slots, current)
-                if idx >= len(start_slots):
-                    break
-                h_effective = start_slots[idx]
-                current = h_effective + max_processing + max_setup
-        else:
-            h_effective = start_slots[-1] if start_slots else 0
+        h_effective = start_slots[-1] if start_slots else 0
         self.time_slots_job = {
             job.id: [
                 t
@@ -234,6 +222,7 @@ class TimeIndex:
         )
 
         scheduled_jobs = []
+        allocated_ids = set()
         for job in self.jobs_data:
             for t in self.time_slots_job[job.id]:
                 for m in range(self.count_machines):
@@ -246,10 +235,23 @@ class TimeIndex:
                                 "sub_machine": m,
                             }
                         )
+                        allocated_ids.add(job.id)
                         break
                 else:
                     continue
                 break
+
+        # Jobs não alocados (model.y == 1) entram com -1, igual ao padrão da heurística
+        for job in self.jobs_data:
+            if job.id not in allocated_ids:
+                scheduled_jobs.append(
+                    {
+                        "job_id": job.id,
+                        "start": -1,
+                        "end": -1,
+                        "sub_machine": -1,
+                    }
+                )
 
         return {
             "machines_scheduling": [
