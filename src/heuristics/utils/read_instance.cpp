@@ -12,7 +12,9 @@ ProblemData ReadInstance::readData(const std::string& path, const int id_machine
     std::vector<int> start_slots = parse_start_slots(data, id_machine);
     int count_machines = parse_count_machines(data, id_machine);
     int big_setup = data["big_setup"].get<int>(); // jobs que compartilham o mesmo recurso e são feitos em máquinas diferentes, devem respeitar esse setup
-    return ProblemData(jobs, setup_matrix, H, first_slot, start_slots, count_machines, big_setup);
+    std::vector<int> next_start_slots = parse_next_start_slots(data, id_machine);
+
+    return ProblemData(jobs, setup_matrix, H, first_slot, start_slots, count_machines, big_setup, next_start_slots);
 }
 
 // Função responsável por retornar o número de máquinas em paralela
@@ -110,4 +112,28 @@ std::vector<std::vector<int>> ReadInstance::parse_setups(
         }
     }
     return matrix;
+}
+
+std::vector<int> ReadInstance::parse_next_start_slots(const json& data, const int id_machine) {
+    int H = parse_H(data, id_machine);
+    std::vector<int> nextStartSlot(H + 2, H + 1);
+    std::vector<int> start_slots = parse_start_slots(data, id_machine);
+
+    int current_slot_idx = 0;
+
+    // Varre todos os instantes de tempo possíveis de 0 até H
+    for (int t = 0; t <= H; ++t) {
+        // Avança o ponteiro de start_slots enquanto o slot for menor que o tempo t
+        while (current_slot_idx < (int)start_slots.size() && start_slots[current_slot_idx] < t) {
+            current_slot_idx++;
+        }
+
+        // Se ainda houver slots disponíveis, salva o atual
+        if (current_slot_idx < (int)start_slots.size()) {
+            nextStartSlot[t] = start_slots[current_slot_idx];
+        } else {
+            nextStartSlot[t] = H + 1; // Estourou H
+        }
+    }
+    return nextStartSlot;
 }

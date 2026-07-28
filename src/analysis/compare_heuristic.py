@@ -21,7 +21,7 @@ HEURISTICS_DIR = BASE_DIR / "src" / "heuristics"
 HEURISTIC_BIN = HEURISTICS_DIR / "heuristic"
 OUT_CSV = BASE_DIR / "data" / "heuristic_vs_mip.csv"
 
-FO_RE = re.compile(r"^Fun[cç][aã]o objetivo: ([\-0-9.eE]+)", re.MULTILINE)
+FO_RE = re.compile(r"^Best solution: ([\-0-9.eE]+)", re.MULTILINE)
 TIME_RE = re.compile(r"Tempo total: ([\-0-9.eE]+)s")
 
 FIELDNAMES = [

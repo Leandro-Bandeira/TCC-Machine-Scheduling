@@ -23,19 +23,19 @@
 // portanto j sempre começa em i+2 (j=i+1 seria inversão de segmento de tamanho 1, no-op).
 // Os dummies nas pontas (posições 0 e size-1) nunca são movidos.
 bool LocalSearch::bestImprovement2Opt(const ProblemData &problemData, Solution &solution){
-    double bestDelta = solution.objective_function;
+    // Garante route_caches/resource_route_bits em dia antes de escanear
+    // candidatos: evaluateIntraRoute confia neles sem checar is_dirty.
+    double bestDelta = evaluate(solution, problemData);
     int best_route = -1, best_i = -1, best_j = -1;
 
     for (int m = 0; m < (int)solution.routes.size(); m++) {
-        std::vector<Job> route = solution.routes[m];
+        std::vector<Job>& route = solution.routes[m]; // referência: muta solution direto, sem copiar a solução inteira
 
         for (size_t i = 1; i < route.size() - 1; i++) {
             for (size_t j = i + 2; j < route.size() - 1; j++) {
                 std::reverse(route.begin() + i + 1, route.begin() + j + 1);
 
-                Solution temp = solution;
-                temp.routes[m] = route;
-                double delta = evaluate(temp, problemData);
+                double delta = evaluateIntraRoute(solution, problemData, m);
                 if (delta < bestDelta) {
                     bestDelta = delta;
                     best_route = m;
@@ -50,6 +50,7 @@ bool LocalSearch::bestImprovement2Opt(const ProblemData &problemData, Solution &
     if (best_route != -1) {
         std::reverse(solution.routes[best_route].begin() + best_i + 1,
                      solution.routes[best_route].begin() + best_j + 1);
+        solution.invalidateRoute(best_route);
         solution.objective_function = bestDelta;
         return true;
     }
@@ -76,32 +77,34 @@ bool LocalSearch::bestImprovement2Opt(const ProblemData &problemData, Solution &
 // intervalo válido [1, n-k-1] no vetor pós-remoção (pulando j==i, que seria no-op).
 // Os dummies nas pontas nunca são movidos.
 bool LocalSearch::bestImprovementOrOpt(const ProblemData &problemData, Solution &solution, int k){
-    double bestDelta = solution.objective_function;
+    double bestDelta = evaluate(solution, problemData);
     int best_route = -1, best_i = -1, best_j = -1;
 
     for (int m = 0; m < (int)solution.routes.size(); m++) {
-        const std::vector<Job>& route = solution.routes[m];
-        int n = (int)route.size();
+        std::vector<Job> original_route = solution.routes[m]; // conteúdo original da rota, pra montar candidatos e restaurar
+        int n = (int)original_route.size();
 
         for (int i = 1; i <= n - 1 - k; i++) {
-            std::vector<Job> segment(route.begin() + i, route.begin() + i + k);
+            std::vector<Job> segment(original_route.begin() + i, original_route.begin() + i + k);
 
             for (int j = 1; j <= n - k - 1; j++) {
                 if (j == i) continue;
 
-                std::vector<Job> temp_route = route;
-                temp_route.erase(temp_route.begin() + i, temp_route.begin() + i + k);
-                temp_route.insert(temp_route.begin() + j, segment.begin(), segment.end());
+                std::vector<Job> candidate_route = original_route;
+                candidate_route.erase(candidate_route.begin() + i, candidate_route.begin() + i + k);
+                candidate_route.insert(candidate_route.begin() + j, segment.begin(), segment.end());
 
-                Solution temp = solution;
-                temp.routes[m] = temp_route;
-                double delta = evaluate(temp, problemData);
+                solution.routes[m].swap(candidate_route); // troca ponteiros O(1), sem copiar a solução inteira
+
+                double delta = evaluateIntraRoute(solution, problemData, m);
                 if (delta < bestDelta) {
                     bestDelta = delta;
                     best_route = m;
                     best_i = i;
                     best_j = j;
                 }
+
+                solution.routes[m].swap(candidate_route); // restaura original_route em solution.routes[m]
             }
         }
     }
@@ -113,6 +116,7 @@ bool LocalSearch::bestImprovementOrOpt(const ProblemData &problemData, Solution 
                                           solution.routes[best_route].begin() + best_i + k);
         solution.routes[best_route].insert(solution.routes[best_route].begin() + best_j,
                                            segment.begin(), segment.end());
+        solution.invalidateRoute(best_route);
         solution.objective_function = bestDelta;
         return true;
     }
@@ -133,32 +137,31 @@ bool LocalSearch::bestImprovementOrOpt(const ProblemData &problemData, Solution 
 // O swap é feito in-place sobre a cópia da rota e desfeito após avaliar,
 // evitando realocar um vetor temporário a cada iteração.
 bool LocalSearch::bestImprovementSwap(const ProblemData &problemData, Solution &solution){
-    double bestDelta = solution.objective_function;
+    double bestDelta = evaluate(solution, problemData);
     int best_route = -1, best_i = -1, best_j = -1;
 
     for (int m = 0; m < (int)solution.routes.size(); m++) {
-        std::vector<Job> route = solution.routes[m];
+        std::vector<Job>& route = solution.routes[m];
 
         for (size_t i = 1; i < route.size() - 1; i++) {
             for (size_t j = i + 1; j < route.size() - 1; j++) {
                 std::swap(route[i], route[j]);
 
-                Solution temp = solution;
-                temp.routes[m] = route;
-                double delta = evaluate(temp, problemData);
+                double delta = evaluateIntraRoute(solution, problemData, m);
                 if (delta < bestDelta) {
                     bestDelta = delta;
                     best_route = m;
                     best_i = i;
                     best_j = j;
                 }
-                std::swap(route[i], route[j]); // desfaz
+                std::swap(route[i], route[j]); // desfaz o swap na rota
             }
         }
     }
 
     if (best_route != -1) {
         std::swap(solution.routes[best_route][best_i], solution.routes[best_route][best_j]);
+        solution.invalidateRoute(best_route);
         solution.objective_function = bestDelta;
         return true;
     }
@@ -187,20 +190,18 @@ bool LocalSearch::bestImprovementSwap(const ProblemData &problemData, Solution &
 // movimento é descartado naturalmente.
 // Os dummies nas pontas nunca são movidos: i e j partem de 1.
 bool LocalSearch::bestImprovementSwapInterRoute(const ProblemData &problemData, Solution &solution){
-    double bestDelta = solution.objective_function;
+    double bestDelta = evaluate(solution, problemData);
     int best_route_m = -1, best_route_l = -1, best_i = -1, best_j = -1;
 
     for(int m = 0; m < (int)solution.routes.size() - 1; m++){
-        std::vector<Job> route_m = solution.routes[m];
+        std::vector<Job>& route_m = solution.routes[m]; // referência: muta solution direto
         for(int l = m + 1; l < (int)solution.routes.size(); l++){
-            std::vector<Job> route_l = solution.routes[l];
+            std::vector<Job>& route_l = solution.routes[l];
             for(int i = 1; i < (int)route_m.size() - 1; i++){
                 for(int j = 1; j < (int)route_l.size() - 1; j++){
                     std::swap(route_m[i], route_l[j]); // Troca entre rotas
-                    Solution temp = solution;
-                    temp.routes[m] = route_m;
-                    temp.routes[l] = route_l;
-                    double delta = evaluate(temp, problemData);
+
+                    double delta = evaluateInterRoute(solution, problemData, m, l);
 
                     if(delta < bestDelta){
                         bestDelta = delta;
@@ -216,6 +217,8 @@ bool LocalSearch::bestImprovementSwapInterRoute(const ProblemData &problemData, 
     }
     if(best_route_m != -1){
         std::swap(solution.routes[best_route_m][best_i], solution.routes[best_route_l][best_j]);
+        solution.invalidateRoute(best_route_m);
+        solution.invalidateRoute(best_route_l);
         solution.objective_function = bestDelta;
         return true;
     }
@@ -243,28 +246,27 @@ bool LocalSearch::bestImprovementSwapInterRoute(const ProblemData &problemData, 
 // O big_setup cross-rota é verificado dentro de evaluate — se violado, FO sobe e o
 // movimento é descartado naturalmente.
 bool LocalSearch::bestImprovementRealocate(const ProblemData &problemData, Solution &solution){
-    double bestDelta = solution.objective_function;
+    double bestDelta = evaluate(solution, problemData);
     int best_route_m = -1, best_route_l = -1, best_i = -1, best_j = -1;
     for(int m = 0; m < (int)solution.routes.size(); m++){
-        const std::vector<Job>& route_m = solution.routes[m];
+        std::vector<Job> original_m = solution.routes[m]; // conteúdo original, pra montar candidatos e restaurar
         for(int l = 0; l < (int)solution.routes.size(); l++){
             if(m==l) continue;
 
-            const std::vector<Job>&route_l = solution.routes[l];
-            for(int i = 1; i < (int)route_m.size() - 1; i++){
-                std::vector<Job> temp_m = route_m;
+            std::vector<Job> original_l = solution.routes[l];
+            for(int i = 1; i < (int)original_m.size() - 1; i++){
+                std::vector<Job> temp_m = original_m;
                 Job job = temp_m[i];
                 temp_m.erase(temp_m.begin() + i);
-                for(int j = 1; j <= (int)route_l.size() - 1; j++){
+                for(int j = 1; j <= (int)original_l.size() - 1; j++){
 
-                    std::vector<Job> temp_l = route_l;
+                    std::vector<Job> temp_l = original_l;
                     temp_l.insert(temp_l.begin() + j, job);
 
-                    Solution temp = solution;
-                    temp.routes[m] = temp_m;
-                    temp.routes[l] = temp_l;
+                    solution.routes[m].swap(temp_m); // troca ponteiros O(1), sem copiar a solução inteira
+                    solution.routes[l].swap(temp_l);
 
-                    double delta = evaluate(temp, problemData);
+                    double delta = evaluateInterRoute(solution, problemData, m, l);
 
                     if (delta < bestDelta){
                         bestDelta = delta;
@@ -273,6 +275,9 @@ bool LocalSearch::bestImprovementRealocate(const ProblemData &problemData, Solut
                         best_i = i;
                         best_j = j;
                     }
+
+                    solution.routes[m].swap(temp_m); // restaura original_m em solution.routes[m]
+                    solution.routes[l].swap(temp_l); // restaura original_l em solution.routes[l]
                 }
             }
         }
@@ -282,6 +287,8 @@ bool LocalSearch::bestImprovementRealocate(const ProblemData &problemData, Solut
         Job job = solution.routes[best_route_m][best_i];
         solution.routes[best_route_m].erase(solution.routes[best_route_m].begin() + best_i);
         solution.routes[best_route_l].insert(solution.routes[best_route_l].begin() + best_j, job);
+        solution.invalidateRoute(best_route_m);
+        solution.invalidateRoute(best_route_l);
         solution.objective_function = bestDelta;
         return true;
     }

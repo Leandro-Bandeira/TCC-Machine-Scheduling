@@ -36,5 +36,5 @@ class ReadInstance{
         // Retorna o número de máquinas em paralela que o recurso tem
         static int parse_count_machines(const json& data, const int id_machine);
 
-
+        static std::vector<int> parse_next_start_slots(const json& data, const int id_machine);
 };

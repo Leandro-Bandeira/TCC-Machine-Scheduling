@@ -9,7 +9,7 @@
 #include <algorithm>
 #include <iostream>
 #include <random>
-
+#include <chrono>
 // Fase de construção GRASP (Greedy Randomized Adaptive Search Procedure).
 //
 // Estratégia:
@@ -30,6 +30,8 @@ Solution ILS::construction(){
 
     // Inicializa count_machines rotas, cada uma com [dummy, dummy]
     solution.routes.resize(count_machines, {Job(0,0,0,0,0,0), Job(0, 0, 0, 0, 0, 0)});
+    if (count_machines > 1)
+        solution.initTrialBuffers(this->problem_data.getNumResources(), this->problem_data.getNumWords());
     // Agrupa jobs por release_date — map ordena automaticamente por chave crescente
     std::map<int, std::vector<Job>> jobs_group_by_release;
     for(const auto& job : jobs) {
@@ -131,6 +133,7 @@ Solution ILS::perturbation(Solution solution){
                 for (int k = j + lp;  k < (int)current_route.size(); k++) new_route.push_back(current_route[k]); // trecho depois de B, inalterado
 
                 current_route = new_route;
+                solution.invalidateRoute(0);
             }
         }
     }
@@ -181,13 +184,15 @@ Solution ILS::perturbation(Solution solution){
 
             route_k.insert(route_k.begin() + pos_k, job_kp);
             route_kp.insert(route_kp.begin() + pos_kp, job_k);
+            solution.invalidateRoute(k);
+            solution.invalidateRoute(kp);
 
             count_repeat++;
         }
     }
     solution.objective_function = evaluate(solution, problem_data);
 
-    std::cout << "Função objetivo após a perturbação: " << std::setprecision(15) << solution.objective_function << std::endl;
+    //std::cout << "Função objetivo após a perturbação: " << std::setprecision(15) << solution.objective_function << std::endl;
     return solution;
 }
 
@@ -206,8 +211,12 @@ Solution ILS::perturbation(Solution solution){
  * Critério de aceitação: best-improvement puro (sem aceitar piora).
  */
 void ILS::algorithm(){
+    auto t0 = std::chrono::steady_clock::now();
 
-    std::srand(time(0));
+    unsigned int seed = time(0);
+    seed = 1785203589;
+    std::srand(seed);
+    //std::cout << "Seed: " << seed << std::endl;
 
     Solution bestAllSolution;
     for(int i = 0; i < this->m_maxIter; i++){
@@ -232,10 +241,16 @@ void ILS::algorithm(){
         }
     }
 
+    auto t1 = std::chrono::steady_clock::now();
+    double elapsed = std::chrono::duration<double>(t1 - t0).count();
+    std::cout << "Tempo total: " << elapsed << "s" << std::endl;
+
     // LocalSearch só atualiza objective_function após cada movimento, sem re-executar
     // evaluate() na solução real (roda apenas em cópias temporárias). Por isso job.start/end
     // ficam desatualizados em relação à ordem final das rotas — resincroniza aqui antes de reportar.
     evaluate(bestAllSolution, problem_data);
-    printRoutes(bestAllSolution);
+    //printRoutes(bestAllSolution);
     this->solution = bestAllSolution;
+
+    std::cout << "Best solution: " << bestAllSolution.objective_function << std::endl;
 }

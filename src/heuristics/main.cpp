@@ -20,19 +20,18 @@ int main(int argc, char** argv){
     const std::vector<Job>& jobs = data.getJobs();
     const std::vector<std::vector<int>>& matrix = data.getSetupMatrix();
     int N = jobs.size();
+    /*
     std::cout << "\nSetup matrix (" << N << "x" << N << "):\n";
+
     for (int i = 0; i < N; i++) {
         for (int j = 0; j < N; j++) {
             std::cout << matrix[i][j] << " ";
         }
         std::cout << "\n";
     }
+    */
 
     ILS ils(data);
-    auto t0 = std::chrono::steady_clock::now();
     ils.algorithm();
-    auto t1 = std::chrono::steady_clock::now();
-    double elapsed = std::chrono::duration<double>(t1 - t0).count();
-    std::cout << "Tempo total: " << elapsed << "s" << std::endl;
     return 0;
 }

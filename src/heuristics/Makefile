@@ -1,5 +1,5 @@
 CXX = g++
-CXXFLAGS = -std=c++17
+CXXFLAGS = -std=c++17 -O2
 
 SRCS = main.cpp utils/read_instance.cpp utils/objective.cpp utils/utils.cpp algorithms/ils.cpp algorithms/LocalSearch.cpp
 TARGET = heuristic

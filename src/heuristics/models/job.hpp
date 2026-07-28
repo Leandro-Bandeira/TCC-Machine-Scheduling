@@ -1,5 +1,8 @@
 #pragma once
 
+
+#include <vector>
+
 // Representa um job (ordem de produção) a ser sequenciado na máquina.
 // Todos os tempos são expressos em slots (unidade discreta de tempo do modelo).
 class Job{
@@ -9,6 +12,7 @@ class Job{
         int release_date_slot;// Slot mais cedo em que o job pode iniciar (data de liberação)
         int due_date_slot;    // Slot de vencimento — atrasos além deste geram tardiness
         int resource_id;      // Tipo de recurso/família do job (usado para calcular setup)
+        int resource_idx = 0; // Índice denso 0..R-1 de resource_id, atribuído por ProblemData::buildResourceIdx()
         int idx;              // Índice interno na matriz de setup (0 = dummy job)
         int start;            // Slot de início agendado (-1 = não alocado), populado por evaluate
         int end;              // Slot de término agendado (-1 = não alocado), populado por evaluate
