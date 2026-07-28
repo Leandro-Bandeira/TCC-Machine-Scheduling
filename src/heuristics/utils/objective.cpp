@@ -75,7 +75,7 @@ static void clearTrialBuffer(std::vector<std::vector<uint64_t>>& bits, std::vect
 // (solution.resource_route_bits[r][k]) e soma a penalidade.
 static void checkAgainstCommitted(Solution& solution, const std::vector<std::vector<uint64_t>>& bits,
                                    const std::vector<int>& touched, int skip_k1, int skip_k2,
-                                   int count_machines, double weight_not_allocated, double& total) {
+                                   int count_machines, double violation_penalty, double& total) {
     for (int r : touched) {
         const std::vector<uint64_t>& a = bits[r];
         for (int k = 0; k < count_machines; k++) {
@@ -85,7 +85,7 @@ static void checkAgainstCommitted(Solution& solution, const std::vector<std::vec
             for (size_t w = 0; w < a.size(); w++) {
                 if (a[w] & b[w]) { overlap = true; break; }
             }
-            if (overlap) { total += weight_not_allocated; break; }
+            if (overlap) { total += violation_penalty; break; }
         }
     }
 }
@@ -179,7 +179,17 @@ double evaluate(Solution& solution, const ProblemData& problem_data) {
 
     // Só verifica big_setup se há mais de uma rota (restrição cross-rota).
     // Não escaneia job nenhum: só os buckets (R x count_machines, pequeno).
+    //
+    // Penalidade = weight_not_allocated * count_machines, não weight_not_allocated
+    // puro: esse último só é calibrado pra dominar "1 job não alocado" (tardiness
+    // máximo de (n-1)*H). Violação de recurso é restrição HARD no MIP (nunca
+    // aparece no espaço viável dele) — se penalizada com o mesmo peso de "não
+    // alocado", em instâncias onde a FO viável real supera (n-1)*H (ex.: jobs
+    // empurrados bem depois de H por causa da grade de turnos), a busca prefere
+    // a solução INFEASÍVEL (paga só 1x weight_not_allocated) a qualquer solução
+    // viável de fato. O fator count_machines garante folga extra de dominância.
     if (count_machines > 1) {
+        const double violation_penalty = weight_not_allocated * count_machines;
         for (int r = 0; r < num_resources; r++) {
             const auto& per_route = solution.resource_route_bits[r];
             bool violated = false;
@@ -195,7 +205,7 @@ double evaluate(Solution& solution, const ProblemData& problem_data) {
                     }
 
                     if (overlap) {
-                        total += weight_not_allocated;
+                        total += violation_penalty;
                         violated = true;
                         break;
                     }
@@ -232,7 +242,7 @@ double evaluateIntraRoute(Solution& solution, const ProblemData& problem_data, i
 
     if (count_machines > 1) {
         checkAgainstCommitted(solution, solution.trial_bits, solution.trial_touched, m, m, count_machines,
-                               weight_not_allocated, total);
+                               weight_not_allocated * count_machines, total);
         clearTrialBuffer(solution.trial_bits, solution.trial_seen, solution.trial_touched);
     }
 
@@ -262,6 +272,8 @@ double evaluateInterRoute(Solution& solution, const ProblemData& problem_data, i
         solution.trial_touched2, /*write_job_fields=*/false);
 
     if (count_machines > 1) {
+        const double violation_penalty = weight_not_allocated * count_machines;
+
         // m contra l: só entra em jogo se as duas realmente tocam o mesmo resource.
         for (int r : solution.trial_touched) {
             if (!solution.trial_seen2[r]) continue;
@@ -271,14 +283,14 @@ double evaluateInterRoute(Solution& solution, const ProblemData& problem_data, i
             for (size_t w = 0; w < a.size(); w++) {
                 if (a[w] & b[w]) { overlap = true; break; }
             }
-            if (overlap) total += weight_not_allocated;
+            if (overlap) total += violation_penalty;
         }
 
         // m e l contra o resto (rotas que não mudaram nesse movimento).
         checkAgainstCommitted(solution, solution.trial_bits, solution.trial_touched, m, l, count_machines,
-                               weight_not_allocated, total);
+                               violation_penalty, total);
         checkAgainstCommitted(solution, solution.trial_bits2, solution.trial_touched2, m, l, count_machines,
-                               weight_not_allocated, total);
+                               violation_penalty, total);
 
         clearTrialBuffer(solution.trial_bits, solution.trial_seen, solution.trial_touched);
         clearTrialBuffer(solution.trial_bits2, solution.trial_seen2, solution.trial_touched2);
