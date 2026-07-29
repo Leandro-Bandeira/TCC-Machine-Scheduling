@@ -66,16 +66,24 @@ struct Solution{
             route_caches[route_idx].is_dirty = true;
     }
 
-    // Dimensiona e zera os buffers de trial 1x, na criação da solução (chamar
-    // logo após construction() montar solution.routes) — num_resources/num_words
-    // são constantes da instância, não precisam ser checados a cada chamada de
-    // evaluateIntraRoute/evaluateInterRoute. clearTrialBuffer devolve o buffer
-    // zerado no fim de cada uso, então dimensionar aqui 1x é suficiente pra
-    // manter o invariante "buffer zerado na entrada" pro resto da vida da solução.
-    void initTrialBuffers(int num_resources, int num_words) {
-        trial_bits.assign(num_resources, std::vector<uint64_t>(num_words, 0ULL));
-        trial_seen.assign(num_resources, false);
-        trial_bits2.assign(num_resources, std::vector<uint64_t>(num_words, 0ULL));
-        trial_seen2.assign(num_resources, false);
+    // Dimensiona/zera route_caches, resource_route_bits e os buffers de trial
+    // 1x, na criação da solução (chamar logo após construction() montar
+    // solution.routes). num_resources/num_words/count_machines são constantes
+    // da instância — não precisam ser checados a cada chamada de evaluate()/
+    // evaluateIntraRoute/evaluateInterRoute. Cópias subsequentes (perturbation,
+    // best-tracking em ILS/LocalSearch) herdam esse dimensionamento via cópia
+    // de vector, então isso roda uma única vez por instância.
+    void initEvalBuffers(int num_resources, int num_words, int count_machines) {
+        route_caches.assign(routes.size(), RouteCache{});
+
+        if (count_machines > 1) {
+            resource_route_bits.assign(
+                num_resources,
+                std::vector<std::vector<uint64_t>>(count_machines, std::vector<uint64_t>(num_words, 0ULL)));
+            trial_bits.assign(num_resources, std::vector<uint64_t>(num_words, 0ULL));
+            trial_seen.assign(num_resources, false);
+            trial_bits2.assign(num_resources, std::vector<uint64_t>(num_words, 0ULL));
+            trial_seen2.assign(num_resources, false);
+        }
     }
 };

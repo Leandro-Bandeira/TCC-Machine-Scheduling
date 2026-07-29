@@ -113,27 +113,11 @@ static void checkAgainstCommitted(Solution& solution, const std::vector<std::vec
 double evaluate(Solution& solution, const ProblemData& problem_data) {
     const int count_machines = problem_data.getCountMachines();
     const int num_resources = problem_data.getNumResources();
-    const int num_words = problem_data.getNumWords();
     const double weight_not_allocated = problem_data.getWeightNotAllocated();
 
-    // route_caches pode estar vazio/desalinhado (solução recém-construída ou
-    // recém-copiada sem inicialização explícita) — realinha e marca tudo sujo.
-    if (solution.route_caches.size() != solution.routes.size())
-        solution.route_caches.assign(solution.routes.size(), RouteCache{});
-
-    // resource_route_bits[r][k] precisa cobrir até H + big_setup (zona de
-    // exclusão pra frente do último slot possível). Realinha se o tamanho não
-    // bater (solução nova/copiada) — zera tudo, força recálculo via is_dirty.
-    if (count_machines > 1 &&
-        (solution.resource_route_bits.size() != (size_t)num_resources ||
-         (num_resources > 0 &&
-          (solution.resource_route_bits[0].size() != (size_t)count_machines ||
-           solution.resource_route_bits[0][0].size() != (size_t)num_words)))) {
-        solution.resource_route_bits.assign(
-            num_resources,
-            std::vector<std::vector<uint64_t>>(count_machines, std::vector<uint64_t>(num_words, 0ULL)));
-    }
-
+    // route_caches e resource_route_bits já vêm dimensionados por
+    // Solution::initEvalBuffers (chamado 1x em ILS::construction()) e
+    // preservados por cópia em toda a vida da solução — sem check aqui.
     double total = 0.0;
 
     for (int m = 0; m < (int)solution.routes.size(); m++) {

@@ -30,8 +30,7 @@ Solution ILS::construction(){
 
     // Inicializa count_machines rotas, cada uma com [dummy, dummy]
     solution.routes.resize(count_machines, {Job(0,0,0,0,0,0), Job(0, 0, 0, 0, 0, 0)});
-    if (count_machines > 1)
-        solution.initTrialBuffers(this->problem_data.getNumResources(), this->problem_data.getNumWords());
+    solution.initEvalBuffers(this->problem_data.getNumResources(), this->problem_data.getNumWords(), count_machines);
     // Agrupa jobs por release_date — map ordena automaticamente por chave crescente
     std::map<int, std::vector<Job>> jobs_group_by_release;
     for(const auto& job : jobs) {
