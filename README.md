@@ -47,8 +47,8 @@ run_config.json   ← instâncias a processar (gerado por instances_data.py)
 | `src/heuristics/algorithms/ils.hpp/.cpp` | GRASP construtivo: distribui jobs em `count_machines` rotas paralelas; VNS aplica movimentos intra-rota sobre todas as rotas |
 | `src/heuristics/algorithms/LocalSearch.hpp/.cpp` | Movimentos intra-rota (Swap, OrOpt-1/2/3, 2-Opt) via VNS; cada movimento itera sobre todas as rotas e avalia a FO total |
 | `src/heuristics/models/job.hpp` | Struct `Job` com id, processing_slots, release_date_slot, due_date_slot, resource_id e idx |
-| `src/heuristics/models/solution.hpp` | Struct `Solution` com `routes` (uma por lane/sub-máquina, cada uma `[dummy \| jobs... \| dummy]`) e valor da FO total |
-| `src/heuristics/models/ProblemData.hpp` | Agrega jobs, setup_matrix, start_slots, H, first_slot, count_machines (lanes paralelas) e big_setup |
+| `src/heuristics/models/solution.hpp` | Struct `Solution` com `routes` (uma por máquina, cada uma `[dummy \| jobs... \| dummy]`) e valor da FO total |
+| `src/heuristics/models/ProblemData.hpp` | Agrega jobs, setup_matrix, start_slots, H, first_slot, count_machines (máquinas paralelas) e big_setup |
 | `src/heuristics/utils/read_instance.hpp/.cpp` | Lê `input.json` e constrói `ProblemData` |
 | `src/heuristics/utils/objective.hpp/.cpp` | Avalia a FO total somando a FO de cada rota independentemente |
 | `src/heuristics/utils/utils.hpp/.cpp` | `printRoutes`: imprime cada rota com seus jobs e a FO total com 15 casas decimais |
@@ -90,7 +90,7 @@ O `run_config.json` é gerado por `instances_data.py` e define quais datas, stat
 
 Implementação em C++17 de uma heurística ILS para o problema de sequenciamento em máquinas paralelas.
 
-A solução é representada como `count_machines` rotas (uma por lane/sub-máquina), cada uma com a forma `[dummy | jobs... | dummy]`. A FO total é a soma das FOs de cada rota avaliadas independentemente.
+A solução é representada como `count_machines` rotas (uma por máquina), cada uma com a forma `[dummy | jobs... | dummy]`. A FO total é a soma das FOs de cada rota avaliadas independentemente.
 
 ### Compilar
 
@@ -113,7 +113,7 @@ Exemplo:
 ./heuristic ../../data/trusted/01122025/94/input.json 5
 ```
 
-Imprime as rotas construídas (uma por lane) e o valor da função objetivo com 15 casas decimais.
+Imprime as rotas construídas (uma por máquina) e o valor da função objetivo com 15 casas decimais.
 
 ### Função objetivo (heurística)
 
