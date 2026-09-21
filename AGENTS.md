@@ -29,3 +29,6 @@ Sempre que a solicitação do usuário ou a tarefa do agente envolver **heuríst
 
 3. **Validação de Testes**:
    - Executar `pytest` após qualquer modificação no pipeline para garantir que nenhum job seja duplicado ou omitido.
+
+4. **Proibição de Comandos Git**:
+   - O agente **NUNCA DEVE EXECUTAR COMANDOS GIT** (como `git status`, `git diff`, `git log`, `git add`, `git commit`, `git push`, etc.). O controle de versão e operações git são de responsabilidade exclusiva do usuário.
