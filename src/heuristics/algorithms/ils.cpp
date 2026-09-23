@@ -156,8 +156,6 @@ Solution ILS::perturbation(Solution solution){
 
             int pos2 = std::rand() % ids.size();
             int second_id = ids[pos2];
-            std::swap(ids[pos2], ids.back());
-            ids.pop_back();
             
             std::swap(current_route[first_id], current_route[second_id]);
             solution.invalidateRoute(0);
