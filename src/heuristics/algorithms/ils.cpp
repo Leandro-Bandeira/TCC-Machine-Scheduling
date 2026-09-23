@@ -104,10 +104,19 @@ Solution ILS::perturbation(Solution solution){
         std::vector<Job>& current_route = solution.routes[0];
 
         // N = jobs reais, sem contar os dois dummies (início e fim da rota)
+        /*
+        Caso tenhamos [Dummy, 1, 2, 3, 4, dummy]; 
+        size = 6, N = 6 - 2 = 4
+        std::rand() % N = [0, N - 1], [0, 3] (Nesse caso, ele exclui o job = 4 e pega o dummy)
+        1 + std::rand() % N = [1, N], [1, 4] (Exclui ambos os extremos)
+         */
         int N = (int)current_route.size() - 2;
+
+        
         int upper = N / 4;
 
         // rota curta demais pra caber dois blocos de tamanho >= 2 cada
+        // Nessa rota, N >= 8
         if (upper >= 2) {
             int l  = lower + std::rand() % (upper - lower + 1); // tamanho do bloco A, [2, N/4]
             int lp = lower + std::rand() % (upper - lower + 1); // tamanho do bloco B, [2, N/4]
@@ -134,6 +143,24 @@ Solution ILS::perturbation(Solution solution){
                 current_route = new_route;
                 solution.invalidateRoute(0);
             }
+        }
+        // Caso N < 8, caimos em um swap intra-machine aleatorio como perturbacao
+        else if (N >= 2){
+            std::vector<int>ids;
+            for (int k = 1; k <= N; k++) ids.push_back(k);
+            int pos1 = std::rand() % ids.size();
+            int first_id = ids[pos1];
+            
+            std::swap(ids[pos1], ids.back());
+            ids.pop_back();
+
+            int pos2 = std::rand() % ids.size();
+            int second_id = ids[pos2];
+            std::swap(ids[pos2], ids.back());
+            ids.pop_back();
+            
+            std::swap(current_route[first_id], current_route[second_id]);
+            solution.invalidateRoute(0);
         }
     }
     else{
