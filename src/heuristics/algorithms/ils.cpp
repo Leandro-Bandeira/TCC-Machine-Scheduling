@@ -115,34 +115,42 @@ Solution ILS::perturbation(Solution solution){
         
         int upper = N / 4;
 
-        // rota curta demais pra caber dois blocos de tamanho >= 2 cada
-        // Nessa rota, N >= 8
+        // N >= 8: (l, l')-block swap com sorteio sempre válido via Stars and Bars.
+        //
+        // Ideia: ao invés de sortear i e rejeitar quando j_min > j_max,
+        // modelamos o problema como distribuir K = N - l - lp posições livres
+        // entre três lacunas (gap_s | BLOCO A | gap_m | BLOCO B | gap_e).
+        // Sorteando dois pontos r1, r2 em [0, K], os índices i e j ficam
+        // matematicamente garantidos — sem rejeição e com distribuição uniforme
+        // sobre todos os pares (i, j) válidos.
         if (upper >= 2) {
             int l  = lower + std::rand() % (upper - lower + 1); // tamanho do bloco A, [2, N/4]
             int lp = lower + std::rand() % (upper - lower + 1); // tamanho do bloco B, [2, N/4]
 
-            // índices reais válidos: 1..N (0 e size-1 são os dummies)
-            int i = 1 + std::rand() % (N - l + 1);  // início do bloco A
-            int j_min = i + l;                      // B só pode começar depois do fim de A (sem overlap)
-            int j_max = N - lp + 1;                 // B precisa caber até o fim da rota
+            // K = posições livres para as três lacunas; sempre >= 0 pois l+lp <= N/2
+            int K = N - l - lp;
 
-            // não há espaço pra encaixar B depois de A com esse (l, l') sorteado
-            if (j_min <= j_max) {
-                int j = j_min + std::rand() % (j_max - j_min + 1); // início do bloco B
+            // Sorteia dois pontos em [0, K] e os ordena (Stars and Bars)
+            int r1 = std::rand() % (K + 1);
+            int r2 = std::rand() % (K + 1);
+            int a  = std::min(r1, r2); // gap_s = a  →  i = a + 1
+            int b  = std::max(r1, r2); // gap_m = b - a , gap_e = K - b
 
-                // reconstrói a rota trocando A <-> B (blocos de tamanhos possivelmente diferentes)
-                std::vector<Job> new_route;
-                new_route.reserve(current_route.size());
+            int i = a + 1;       // início do bloco A: [1, N-l-lp+1]
+            int j = b + l + 1;   // início do bloco B: sempre > i+l-1, sempre cabe na rota
 
-                for (int k = 0;       k < i; k++) new_route.push_back(current_route[k]); // trecho antes de A, inalterado
-                for (int k = j;       k < j + lp; k++) new_route.push_back(current_route[k]); // bloco B ocupa o lugar de A
-                for (int k = i + l;   k < j; k++) new_route.push_back(current_route[k]); // trecho entre A e B, inalterado
-                for (int k = i;       k < i + l; k++) new_route.push_back(current_route[k]); // bloco A ocupa o lugar de B
-                for (int k = j + lp;  k < (int)current_route.size(); k++) new_route.push_back(current_route[k]); // trecho depois de B, inalterado
+            // reconstrói a rota trocando A <-> B (blocos de tamanhos possivelmente diferentes)
+            std::vector<Job> new_route;
+            new_route.reserve(current_route.size());
 
-                current_route = new_route;
-                solution.invalidateRoute(0);
-            }
+            for (int k = 0;       k < i;                      k++) new_route.push_back(current_route[k]); // trecho antes de A, inalterado
+            for (int k = j;       k < j + lp;                 k++) new_route.push_back(current_route[k]); // bloco B ocupa o lugar de A
+            for (int k = i + l;   k < j;                      k++) new_route.push_back(current_route[k]); // trecho entre A e B, inalterado
+            for (int k = i;       k < i + l;                  k++) new_route.push_back(current_route[k]); // bloco A ocupa o lugar de B
+            for (int k = j + lp;  k < (int)current_route.size(); k++) new_route.push_back(current_route[k]); // trecho depois de B, inalterado
+
+            current_route = new_route;
+            solution.invalidateRoute(0);
         }
         // Caso N < 8, caimos em um swap intra-machine aleatorio como perturbacao
         else if (N >= 2){
