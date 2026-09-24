@@ -164,9 +164,50 @@ AND              :  0b ...0000 0011 0000 0000   ≠ 0  →  CONFLITO (slots 72�
 
 Se o AND resultar em zero para todas as $W$ palavras, não há sobreposição e o movimento é viável para esse recurso.
 
-### 3.4 `RouteCache` e Invalidação Pontual
+### 3.4 Buffers Temporários de Simulação: `trial_bits`, `trial_touched` e `trial_seen`
 
-Cada rota armazena seu custo parcial consolidado e a lista de recursos que tocou (`touched_resources`). Ao aplicar um movimento definitivo, apenas a rota modificada é invalidada via `solution.invalidateRoute(m)` — o bitset `resource_route_bits[r][m]` é zerado e o custo em cache descartado. As demais rotas permanecem válidas (`is_dirty == false`), evitando recálculo desnecessário.
+Na busca local (RVND), o algoritmo avalia centenas de milhares de movimentos hipotéticos (ex.: *"E se trocarmos a ordem dos jobs 2 e 5 na máquina 0?"*). Mais de 99% desses candidatos são rejeitados por não melhorarem a função objetivo.
+
+Se cada teste gravasse diretamente na matriz oficial `resource_route_bits[r][m]`, a solução corrente seria corrompida e exigiria um mecanismo custoso de rollback a cada rejeição. Por isso, a simulação utiliza buffers provisórios:
+
+* **`trial_bits[r]` (e `trial_bits2[r]` para movimentos inter-rota)**:
+  Um buffer temporário de dimensão $[R][W]$ que recebe os bits simulados da rota candidata, mantendo a matriz oficial intacta.
+
+#### O Problema da Limpeza Ingênua vs. `trial_touched`
+Após testar um candidato, o buffer `trial_bits` deve ser zerado para não deixar "bits fantasmas" para o próximo candidato:
+* Se a instância tiver $R = 100$ recursos e o algoritmo zerar todos os $100$ vetores a cada candidato (`for (int r = 0; r < R; r++) std::fill(...)`), esse laço executado centenas de milhares de vezes saturaria o barramento de memória e destruiria o desempenho da busca local.
+* No entanto, uma única rota normalmente contém jobs de apenas **2 ou 3 recursos distintos**.
+
+Para tornar a limpeza instantânea, utilizam-se duas estruturas auxiliares:
+
+1. **`trial_touched` (`std::vector<int>`)**:
+   Uma lista dinâmica que registra estritamente os `resource_idx` que foram ativados durante a simulação da rota atual (ex.: `[7, 42]`).
+2. **`trial_seen` (`std::vector<bool>`)**:
+   Vetor de controle de tamanho $R$ que atua como guarda em $\mathcal{O}(1)$ para evitar duplicatas em `trial_touched` (por exemplo, se a rota possuir 3 jobs diferentes que pertencem ao recurso 7, o índice 7 só é inserido uma única vez).
+
+#### Limpeza Otimizada em $\mathcal{O}(R_{\text{usados}})$ (`clearTrialBuffer`)
+Ao concluir a avaliação do candidato (após testar o `AND` de conflito contra as rotas commitadas), a função `clearTrialBuffer` percorre **apenas** os recursos listados em `trial_touched`:
+
+```cpp
+static void clearTrialBuffer(std::vector<std::vector<uint64_t>>& bits, std::vector<bool>& seen,
+                              std::vector<int>& touched) {
+    for (int r : touched) {
+        std::fill(bits[r].begin(), bits[r].end(), 0ULL); // zera só o que foi usado
+        seen[r] = false;                                 // reseta a guarda
+    }
+    touched.clear();                                     // esvazia a lista
+}
+```
+
+Dessa forma, em vez de 100 operações de limpeza de memória, a CPU executa apenas 2 ou 3 iterações, garantindo que o buffer esteja zerado para o próximo vizinho com custo praticamente nulo.
+
+### 3.5 `RouteCache` e Invalidação Pontual (`touched_resources`)
+
+Cada rota armazena seu custo consolidado em `route_caches[m].cost` e uma flag `is_dirty`. Quando um movimento vencedor é aceito e commitado via `evaluate()`:
+
+* **Por que salvar `cache.touched_resources`?**
+  Quando um job sai da rota $m$ e vai para outra rota (movimento inter-rota), esse job não aparece mais no percurso da rota $m$. Se tentássemos zerar os bits antigos olhando apenas os jobs *atuais* da rota, o bit do job que saiu ficaria órfão e marcado para sempre em `resource_route_bits[r][m]`.
+* Salvando a lista exata dos recursos tocados na execução anterior (`cache.touched_resources`), na próxima vez que a rota for invalidada (`is_dirty == true`), o algoritmo consulta essa lista histórica e zera com precisão cirúrgica apenas os buckets que aquela rota havia modificado no passado antes de recalcular. As demais rotas permanecem válidas (`is_dirty == false`), reaproveitando seus custos em $\mathcal{O}(1)$.
 
 ---
 

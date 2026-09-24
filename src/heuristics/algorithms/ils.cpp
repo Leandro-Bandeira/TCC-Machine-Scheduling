@@ -246,7 +246,7 @@ void ILS::algorithm(){
     auto t0 = std::chrono::steady_clock::now();
 
     unsigned int seed = time(0);
-    seed = 1785203589;
+    //seed = 1785203589;
     std::srand(seed);
     //std::cout << "Seed: " << seed << std::endl;
 
