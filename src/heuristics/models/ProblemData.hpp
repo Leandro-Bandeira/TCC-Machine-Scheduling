@@ -23,7 +23,9 @@ class ProblemData{
             // chamada de evaluate()/evaluateIntraRoute/evaluateInterRoute.
             weight_not_allocated = (double)(getNumJobs() - 1) * H + 1;
             epsilon = 1.0 / weight_not_allocated;
-            num_words = (H + big_setup) / 64 + 2;
+            // O std::min(H + 1, end + big_setup) em objective.cpp impede que os
+            // bits ultrapassem H. Portanto, H / 64 + 1 palavras cobrem todos os slots exatos.
+            num_words = H / 64 + 1;
         }
 
         const std::vector<Job>& getJobs() const { return jobs; }
