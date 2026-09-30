@@ -104,22 +104,36 @@ def collect_instances(trusted_dir: Path) -> list[dict]:
             data = json.load(f)
 
         jobs_per_machine: dict[int, int] = {}
+        resources_per_machine: dict[int, set] = {}
         for job in data.get("jobs", []):
             if job.get("Status_Processed", "") != "":
                 continue
             m_id = job["assigned_machine_id"]
             jobs_per_machine[m_id] = jobs_per_machine.get(m_id, 0) + 1
+            if m_id not in resources_per_machine:
+                resources_per_machine[m_id] = set()
+            if "resource_id" in job:
+                resources_per_machine[m_id].add(job["resource_id"])
 
         for machine in data.get("machines", []):
             m_id = machine["machine_id"]
+            job_capacity = machine["job_capacity"]
+            start_slots = machine.get("start_slots", [])
+            h_effective = start_slots[-1] if start_slots else 0
+            w_needed = (h_effective // 64) + 1
+            num_resources = len(resources_per_machine.get(m_id, set()))
+
             rows.append(
                 {
                     "date": date_iso,
                     "status": status,
                     "machine_id": m_id,
                     "machine_name": machine["machine_name"],
-                    "job_capacity": machine["job_capacity"],
+                    "job_capacity": job_capacity,
                     "count_jobs": jobs_per_machine.get(m_id, 0),
+                    "Quantia de recursos": num_resources,
+                    "maquinas": job_capacity,
+                    "W(Necessario)": w_needed,
                 }
             )
     return rows
@@ -137,6 +151,9 @@ def write_instances_csv(rows: list[dict], path: Path) -> None:
                 "machine_name",
                 "job_capacity",
                 "count_jobs",
+                "Quantia de recursos",
+                "maquinas",
+                "W(Necessario)",
             ],
         )
         writer.writeheader()
@@ -297,7 +314,8 @@ def main() -> None:
             print(
                 f"  {row['date']} / status={row['status']}"
                 f" / {row['machine_name']}"
-                f" → {row['count_jobs']} jobs, capacity={row['job_capacity']}"
+                f" → {row['count_jobs']} jobs, capacity={row['job_capacity']}, "
+                f"R={row['Quantia de recursos']}, M={row['maquinas']}, W={row['W(Necessario)']}"
             )
     else:
         print("\nNenhum input.json encontrado.")

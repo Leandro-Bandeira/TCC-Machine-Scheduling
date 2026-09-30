@@ -48,7 +48,10 @@ static double computeRoute(std::vector<Job>& route, const ProblemData& problem_d
         prev_idx = job.idx;
         sum_completion_time += end;
         last_completion_time = end;
-
+        /*
+         * Para o recurso de job, inicio e fim + big setup, coloca em 1 na matriz tridimensional 
+         * Marcamos como visto e tocado
+         */
         if (count_machines > 1) {
             set_range(getBits(job.resource_idx), start, std::min(H + 1, end + big_setup));
             if (!seen[job.resource_idx]) {

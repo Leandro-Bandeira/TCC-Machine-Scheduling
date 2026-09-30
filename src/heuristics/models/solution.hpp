@@ -5,9 +5,10 @@
 #include <vector>
 #include "job.hpp"
 
-// Cache do resultado de evaluate() para uma única rota. Enquanto a rota não muda
-// (is_dirty == false), evaluate() reaproveita cost em O(1) em vez de recalcular
-// a rota inteira do zero a cada chamada.
+
+/* is_dirty é utilizado para reaproveitamento do custo da rota, caso ela não foi alterado (is_dirty = false)
+* Reutilizamos seu custo
+*/
 struct RouteCache {
     double cost = 0.0;
     bool is_dirty = true;
@@ -39,6 +40,8 @@ struct Solution{
     // rota são dimensões fixas da instância, só o CONTEÚDO dos bits muda.
     // Atualizado durante a Fase 1 de evaluate() (route/resource já disponíveis
     // de graça no loop); checado na Fase 2 sem precisar escanear job nenhum.
+    
+    /*Cada recurso da minha solução, se conecta a uma rota (número de máquinas) e por fim temos o seu vetor de tamanho W*/
     std::vector<std::vector<std::vector<uint64_t>>> resource_route_bits;
 
     // Scratch de evaluateIntraRoute (objective.cpp): bits temporários da rota
@@ -46,6 +49,12 @@ struct Solution{
     // (realinhados só se o tamanho não bater com a instância), sempre limpos de
     // volta a zero no final de cada chamada. trial_seen/trial_touched evitam
     // duplicar entradas e permitem limpar só o que foi tocado, não tudo.
+    
+    /*
+     * Como nas avaliações não podemos tocar em resource_route_bits, apenas no movimento de fato aplicado, precisamos desse vetor
+     * TrialBits é um vetor bidimensional que representa para cada recurso seu vetor de tamanho W
+     * Ao fim de cada chamada esse vetor é limpado (volta ao zero), trial_seen e trial_touched só limpa o que foi tocado
+     */
     std::vector<std::vector<uint64_t>> trial_bits;
     std::vector<bool> trial_seen;
     std::vector<int> trial_touched;
@@ -66,14 +75,17 @@ struct Solution{
             route_caches[route_idx].is_dirty = true;
     }
 
-    // Dimensiona/zera route_caches, resource_route_bits e os buffers de trial
+    // Dimensiona/zera route_caches, resource_route_*bits e os buffers de trial
     // 1x, na criação da solução (chamar logo após construction() montar
     // solution.routes). num_resources/num_words/count_machines são constantes
     // da instância — não precisam ser checados a cada chamada de evaluate()/
     // evaluateIntraRoute/evaluateInterRoute. Cópias subsequentes (perturbation,
     // best-tracking em ILS/LocalSearch) herdam esse dimensionamento via cópia
     // de vector, então isso roda uma única vez por instância.
+    
+    
     void initEvalBuffers(int num_resources, int num_words, int count_machines) {
+        /* Para cada vetor de jobs (Rota), inicializa uma RouteCache */
         route_caches.assign(routes.size(), RouteCache{});
 
         if (count_machines > 1) {
