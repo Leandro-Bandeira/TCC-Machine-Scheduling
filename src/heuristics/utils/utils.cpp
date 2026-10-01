@@ -46,3 +46,15 @@ void unset_range(std::vector<uint64_t>& bits, int start, int end) {
         bits[w] &= ~mask;
     }
 }
+
+
+void print_values(std::ofstream&file, double bestDelta, double delta) {
+    // std::setprecision(17) garante a exibição da precisão máxima do tipo 'double' (15-17 dígitos)
+    // std::fixed força a notação decimal em vez da notação científica (e+06)
+    file << std::fixed << std::setprecision(10);
+
+    file << "BestDelta exato: " << bestDelta << "\n";
+    file << "Delta exato:     " << delta << "\n";
+    file << "Diferenca:       " << (bestDelta - delta) << "\n";
+    file << "---------------------------------------------------" << std::endl;
+}
