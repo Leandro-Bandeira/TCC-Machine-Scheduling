@@ -26,12 +26,15 @@ class ProblemData{
             // O std::min(H + 1, end + big_setup) em objective.cpp impede que os
             // bits ultrapassem H. Portanto, H / 64 + 1 palavras cobrem todos os slots exatos.
             num_words = H / 64 + 1;
+            /* Usamos + 1 para casos onde count_machines  = 1*/
+            resource_violation_penalty = weight_not_allocated * count_machines * getNumJobs() ;
         }
 
         const std::vector<Job>& getJobs() const { return jobs; }
         const std::vector<std::vector<int>>& getSetupMatrix() const { return setup_matrix; }
         const std::vector<int>& getStartSlots() const { return start_slots; }
 
+        double getResourceViolationPenalty() const {return resource_violation_penalty;}
         int getCountMachines() const { return count_machines; }
         int getBigSetup() const { return big_setup; }
         int getH() const { return H; }
@@ -67,6 +70,7 @@ class ProblemData{
         double weight_not_allocated = 0.0;
         double epsilon = 0.0;
         int num_words = 0;
+        double resource_violation_penalty = 0.0;
 
         // Mapeia cada resource_id (podem ser esparsos, tipo 113, 2831, ...) pra
         // um índice denso 0..R-1, gravado direto em job.resource_idx — feito

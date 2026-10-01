@@ -10,7 +10,7 @@
 constexpr double EPS_FO = 1e-3;
 std::ofstream logFile("log_ls.txt");
     
-
+bool writeLogFile = false;
 // ---------------------------------------------------------------------------
 // 2-Opt
 // ---------------------------------------------------------------------------
@@ -56,8 +56,10 @@ bool LocalSearch::bestImprovement2Opt(const ProblemData &problemData, Solution &
         std::reverse(solution.routes[best_route].begin() + best_i + 1,
                      solution.routes[best_route].begin() + best_j + 1);
         solution.invalidateRoute(best_route);
-        logFile << "BestDelta aceito: " << bestDelta << std::endl;
-        logFile << "BestDelta de fato: " << evaluate(solution, problemData) << std::endl;
+        if(writeLogFile){
+            logFile << "BestDelta aceito: " << bestDelta << std::endl;
+            logFile << "BestDelta de fato: " << evaluate(solution, problemData) << std::endl;
+        }
         solution.objective_function = bestDelta;
         return true;
     }
@@ -125,8 +127,11 @@ bool LocalSearch::bestImprovementOrOpt(const ProblemData &problemData, Solution 
         solution.routes[best_route].insert(solution.routes[best_route].begin() + best_j,
                                            segment.begin(), segment.end());
         solution.invalidateRoute(best_route);
-        logFile << "BestDelta aceito: " << bestDelta << std::endl;
-        logFile << "BestDelta de fato após aplicar evaluate: " << evaluate(solution, problemData) << std::endl;
+        if(writeLogFile){
+            logFile << "BestDelta aceito: " << bestDelta << std::endl;
+            logFile << "BestDelta de fato após aplicar evaluate: " << evaluate(solution, problemData) << std::endl;
+        }
+
         solution.objective_function = bestDelta;
         return true;
     }
@@ -175,8 +180,10 @@ bool LocalSearch::bestImprovementSwap(const ProblemData &problemData, Solution &
     if (best_route != -1) {
         std::swap(solution.routes[best_route][best_i], solution.routes[best_route][best_j]);
         solution.invalidateRoute(best_route);
-        logFile << "BestDelta aceito: " << bestDelta << std::endl;
-        logFile << "BestDelta de fato: " << evaluate(solution, problemData) << std::endl;
+        if(writeLogFile){
+            logFile << "BestDelta aceito: " << bestDelta << std::endl;
+            logFile << "BestDelta de fato: " << evaluate(solution, problemData) << std::endl;
+        }
         solution.objective_function = bestDelta;
         return true;
     }
@@ -235,8 +242,10 @@ bool LocalSearch::bestImprovementSwapInterRoute(const ProblemData &problemData, 
         std::swap(solution.routes[best_route_m][best_i], solution.routes[best_route_l][best_j]);
         solution.invalidateRoute(best_route_m);
         solution.invalidateRoute(best_route_l);
-        logFile << "BestDelta aceito: " << bestDelta << std::endl;
-        logFile << "BestDelta de fato: " << evaluate(solution, problemData) << std::endl;
+        if(writeLogFile){
+            logFile << "BestDelta aceito: " << bestDelta << std::endl;
+            logFile << "BestDelta de fato: " << evaluate(solution, problemData) << std::endl;
+        }
         solution.objective_function = bestDelta;
         return true;
     }
@@ -308,8 +317,10 @@ bool LocalSearch::bestImprovementRealocate(const ProblemData &problemData, Solut
         solution.routes[best_route_l].insert(solution.routes[best_route_l].begin() + best_j, job);
         solution.invalidateRoute(best_route_m);
         solution.invalidateRoute(best_route_l);
-        logFile << "BestDelta aceito: " << bestDelta << std::endl;
-        logFile << "BestDelta de fato: " << evaluate(solution, problemData) << std::endl;
+        if (writeLogFile){
+            logFile << "BestDelta aceito: " << bestDelta << std::endl;
+            logFile << "BestDelta de fato: " << evaluate(solution, problemData) << std::endl;
+        }
         solution.objective_function = bestDelta;
         return true;
     }
@@ -352,7 +363,6 @@ Solution LocalSearch::algorithm(const ProblemData &problemData, Solution solutio
             NL.pop_back();
         }
     }
-    logFile << "Solução Encontrada após LS: " << solution.objective_function << std::endl;
-
+    
     return solution;
 }

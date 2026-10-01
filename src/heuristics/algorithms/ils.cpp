@@ -251,7 +251,10 @@ void ILS::algorithm(){
     //std::cout << "Seed: " << seed << std::endl;
 
     Solution bestAllSolution;
+    std::cout << "MaxIterValue: " << this->m_maxIter << std::endl;
+    std::cout << "MaxIterIlsValue: " << this->m_maxIterILS << std::endl;
     for(int i = 0; i < this->m_maxIter; i++){
+        std::cout << "Iteração: " << i << std::endl;
         Solution s = construction();
 
         Solution best = s;

@@ -74,23 +74,30 @@ static void clearTrialBuffer(std::vector<std::vector<uint64_t>>& bits, std::vect
     touched.clear();
 }
 
-// Checa se os bits tocados de um buffer batem contra outra rota já commitada
-// (solution.resource_route_bits[r][k]) e soma a penalidade.
-static void checkAgainstCommitted(Solution& solution, const std::vector<std::vector<uint64_t>>& bits,
-                                   const std::vector<int>& touched, int skip_k1, int skip_k2,
+/*
+No movimento intraroute, quando alteramos uma unica rota
+Dentro de current_bits, temos o posicionamento em bits do recurso tocado em relação a quantia de palavras W
+Como ele foi alterado, sua posição também foi alterada
+Para validar a restrição de recurso, devemos comparar seu novo posicionamento, com o seu posicionamento em outras máquinas
+*/
+static bool checkAgainstCommitted(Solution& solution, const std::vector<std::vector<uint64_t>>& current_bits,
+                                   const std::vector<int>& touched, int current_route,
                                    int count_machines, double violation_penalty, double& total) {
     for (int r : touched) {
-        const std::vector<uint64_t>& a = bits[r];
+        const std::vector<uint64_t>& a = current_bits[r];
         for (int k = 0; k < count_machines; k++) {
-            if (k == skip_k1 || k == skip_k2) continue;
+            if (k == current_route) continue;
             const std::vector<uint64_t>& b = solution.resource_route_bits[r][k];
-            bool overlap = false;
             for (size_t w = 0; w < a.size(); w++) {
-                if (a[w] & b[w]) { overlap = true; break; }
+                if (a[w] & b[w]) {
+                    total += violation_penalty; 
+                    return true;
+                }
             }
-            if (overlap) { total += violation_penalty; break; }
+            
         }
     }
+    return false;
 }
 
 // Avalia todas as rotas da solução e retorna a FO total.
@@ -116,7 +123,7 @@ static void checkAgainstCommitted(Solution& solution, const std::vector<std::vec
 double evaluate(Solution& solution, const ProblemData& problem_data) {
     const int count_machines = problem_data.getCountMachines();
     const int num_resources = problem_data.getNumResources();
-    const double weight_not_allocated = problem_data.getWeightNotAllocated();
+    const double resource_violation_penalty = problem_data.getResourceViolationPenalty();
 
     // route_caches e resource_route_bits já vêm dimensionados por
     // Solution::initEvalBuffers (chamado 1x em ILS::construction()) e
@@ -156,7 +163,7 @@ double evaluate(Solution& solution, const ProblemData& problem_data) {
         cache.cost = computeRoute(
             route, problem_data,
             [&](int r) -> std::vector<uint64_t>& { return solution.resource_route_bits[r][m]; }, seen,
-            new_touched, /*write_job_fields=*/true);
+            new_touched, true);
         cache.is_dirty = false;
 
         if (count_machines > 1) cache.touched_resources = std::move(new_touched);
@@ -175,28 +182,26 @@ double evaluate(Solution& solution, const ProblemData& problem_data) {
     // empurrados bem depois de H por causa da grade de turnos), a busca prefere
     // a solução INFEASÍVEL (paga só 1x weight_not_allocated) a qualquer solução
     // viável de fato. O fator count_machines garante folga extra de dominância.
+    
+    
     if (count_machines > 1) {
-        const double violation_penalty = weight_not_allocated * count_machines;
         for (int r = 0; r < num_resources; r++) {
             const auto& per_route = solution.resource_route_bits[r];
-            bool violated = false;
-
-            for (int k1 = 0; k1 < count_machines && !violated; k1++) {
+            
+            for (int k1 = 0; k1 < count_machines; k1++) {
                 for (int k2 = k1 + 1; k2 < count_machines; k2++) {
                     const std::vector<uint64_t>& a = per_route[k1];
                     const std::vector<uint64_t>& b = per_route[k2];
 
-                    bool overlap = false;
                     for (size_t w = 0; w < a.size(); w++) {
-                        if (a[w] & b[w]) { overlap = true; break; }
+                        if (a[w] & b[w]) {
+                            total += resource_violation_penalty;
+                            return total;
+                        }
                     }
 
-                    if (overlap) {
-                        total += violation_penalty;
-                        violated = true;
-                        break;
-                    }
                 }
+                
             }
         }
     }
@@ -204,19 +209,18 @@ double evaluate(Solution& solution, const ProblemData& problem_data) {
     return total;
 }
 
-// Avalia a rota m no estado ATUAL de solution.routes[m] (o chamador já aplicou
-// o movimento — swap/reverse/reinserção — antes de chamar), sem mutar nada
-// global (job.start/end reais, resource_route_bits, route_caches). Só a rota m
-// muda nesse movimento — as outras usam custo já calculado (cache), sem
-// recomputar. Serve pra escanear candidatos em Swap/2-Opt/OrOpt sem o vaivém
-// de snapshot/restore que causava bit órfão.
-//
-// Pré-condição: route_caches e resource_route_bits das rotas != m precisam
-// estar em dia (chamar evaluate() uma vez antes de começar a escanear
-// candidatos garante isso).
+/*
+Como as rotas k != m não se alteraram, elas possuem o mesmo custo de rota então podemos apenas aproveitar seus custos
+Porém na rota atual devemos computar toda a rota, por isso chamamos o computeRoute para a rota m.
+
+Perceba que enviamos uma função lambda (getBits), essa função recebe o resource_idx e retorna seus bits que são apenas os TrialBits
+TrialBits: Bits de um determinado recurso
+TrialSeen: Recursos que foram não foram vistos e colocamos como vistos
+TrialTouched: Recursos que foram tocados
+*/
 double evaluateIntraRoute(Solution& solution, const ProblemData& problem_data, int m) {
     const int count_machines = problem_data.getCountMachines();
-    const double weight_not_allocated = problem_data.getWeightNotAllocated();
+    const double resource_violation_penalty = problem_data.getResourceViolationPenalty();
 
     double total = 0.0;
     for (int k = 0; k < (int)solution.routes.size(); k++)
@@ -224,12 +228,14 @@ double evaluateIntraRoute(Solution& solution, const ProblemData& problem_data, i
 
     total += computeRoute(
         solution.routes[m], problem_data,
-        [&](int r) -> std::vector<uint64_t>& { return solution.trial_bits[r]; }, solution.trial_seen,
-        solution.trial_touched, /*write_job_fields=*/false);
+        [&](int resource_idx) -> std::vector<uint64_t>& { return solution.trial_bits[resource_idx]; }, solution.trial_seen,
+        solution.trial_touched, false);
 
     if (count_machines > 1) {
-        checkAgainstCommitted(solution, solution.trial_bits, solution.trial_touched, m, m, count_machines,
-                               weight_not_allocated * count_machines, total);
+        bool violated = checkAgainstCommitted(
+            solution, solution.trial_bits, solution.trial_touched, m, count_machines,
+            resource_violation_penalty, total
+        );
         clearTrialBuffer(solution.trial_bits, solution.trial_seen, solution.trial_touched);
     }
 
@@ -243,25 +249,25 @@ double evaluateIntraRoute(Solution& solution, const ProblemData& problem_data, i
 // já que uma pode violar contra a outra além de violar contra o resto.
 double evaluateInterRoute(Solution& solution, const ProblemData& problem_data, int m, int l) {
     const int count_machines = problem_data.getCountMachines();
-    const double weight_not_allocated = problem_data.getWeightNotAllocated();
-
+    const double resource_violation_penalty = problem_data.getResourceViolationPenalty();
+    
     double total = 0.0;
     for (int k = 0; k < (int)solution.routes.size(); k++)
         if (k != m && k != l) total += solution.route_caches[k].cost;
 
     total += computeRoute(
         solution.routes[m], problem_data,
-        [&](int r) -> std::vector<uint64_t>& { return solution.trial_bits[r]; }, solution.trial_seen,
-        solution.trial_touched, /*write_job_fields=*/false);
+        [&](int resource_idx) -> std::vector<uint64_t>& { return solution.trial_bits[resource_idx]; }, solution.trial_seen,
+        solution.trial_touched, false);
     total += computeRoute(
         solution.routes[l], problem_data,
-        [&](int r) -> std::vector<uint64_t>& { return solution.trial_bits2[r]; }, solution.trial_seen2,
-        solution.trial_touched2, /*write_job_fields=*/false);
+        [&](int resource_idx) -> std::vector<uint64_t>& { return solution.trial_bits2[resource_idx]; }, solution.trial_seen2,
+        solution.trial_touched2, false);
 
     if (count_machines > 1) {
-        const double violation_penalty = weight_not_allocated * count_machines;
-
+        bool violated = false;
         // m contra l: só entra em jogo se as duas realmente tocam o mesmo resource.
+        /*
         for (int r : solution.trial_touched) {
             if (!solution.trial_seen2[r]) continue;
             const std::vector<uint64_t>& a = solution.trial_bits[r];
@@ -270,15 +276,17 @@ double evaluateInterRoute(Solution& solution, const ProblemData& problem_data, i
             for (size_t w = 0; w < a.size(); w++) {
                 if (a[w] & b[w]) { overlap = true; break; }
             }
-            if (overlap) total += violation_penalty;
+            if (overlap) total += resource_violation_penalty;
         }
-
+        */
         // m e l contra o resto (rotas que não mudaram nesse movimento).
-        checkAgainstCommitted(solution, solution.trial_bits, solution.trial_touched, m, l, count_machines,
-                               violation_penalty, total);
-        checkAgainstCommitted(solution, solution.trial_bits2, solution.trial_touched2, m, l, count_machines,
-                               violation_penalty, total);
-
+        violated = checkAgainstCommitted(solution, solution.trial_bits, solution.trial_touched, m, count_machines,
+                               resource_violation_penalty, total);
+        
+        if (!violated){
+        checkAgainstCommitted(solution, solution.trial_bits2, solution.trial_touched2,  l, count_machines,
+                               resource_violation_penalty, total);
+        }
         clearTrialBuffer(solution.trial_bits, solution.trial_seen, solution.trial_touched);
         clearTrialBuffer(solution.trial_bits2, solution.trial_seen2, solution.trial_touched2);
     }
