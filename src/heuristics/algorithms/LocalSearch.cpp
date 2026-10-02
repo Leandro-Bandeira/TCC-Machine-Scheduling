@@ -10,7 +10,7 @@
 constexpr double EPS_FO = 1e-3;
 std::ofstream logFile("log_ls.txt");
     
-bool writeLogFile = false;
+constexpr bool writeLogFile = true;
 // ---------------------------------------------------------------------------
 // 2-Opt
 // ---------------------------------------------------------------------------
@@ -363,6 +363,8 @@ Solution LocalSearch::algorithm(const ProblemData &problemData, Solution solutio
             NL.pop_back();
         }
     }
-    
+    if(writeLogFile){
+        logFile << "Saiu do LS";
+    }
     return solution;
 }

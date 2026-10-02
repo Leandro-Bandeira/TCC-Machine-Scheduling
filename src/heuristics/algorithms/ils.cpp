@@ -10,6 +10,9 @@
 #include <iostream>
 #include <random>
 #include <chrono>
+
+
+constexpr double EPS_FO = 1e-3;
 // Fase de construção GRASP (Greedy Randomized Adaptive Search Procedure).
 //
 // Estratégia:
@@ -261,17 +264,19 @@ void ILS::algorithm(){
 
         int iterILS = 0;
         while(iterILS <= this->m_maxIterILS){
+            std::cout << "IterIls: " << iterILS << std::endl;
             s = LocalSearch::algorithm(problem_data, s);
 
-            if(s.objective_function < best.objective_function){
+            if(best.objective_function - s.objective_function > EPS_FO){
                 best = s;
+                std::cout << "Resetou iterILS" << std::endl;
                 iterILS = 0;
             }
             s = perturbation(best);
             iterILS++;
         }
 
-        if(best.objective_function < bestAllSolution.objective_function){
+        if(bestAllSolution.objective_function - best.objective_function > EPS_FO ){
             bestAllSolution = best;
         }
     }
