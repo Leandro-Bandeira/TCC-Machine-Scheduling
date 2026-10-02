@@ -1,0 +1,6 @@
+1. Instancia ./heuristic ../../data/trusted/02112025/56/input.json 2
+    1.1 Estava infinito no local search porque aceitava soluções com erro de double
+        1.1.1 Adicionado para ter uma diferença de EPS_FO
+    1.2 Estava inifnito no local search, porque o intra/inter estavam recalculando a FO diferente do Evaluate 
+        1.2.1 Ajustado, colocando eles para somar uma unica vez o custo da restrição de recurso
+    1.3 Ciclo infinito ainda, precisamos descobrir, melhorando o arquivo de logger.

@@ -264,7 +264,7 @@ void ILS::algorithm(){
 
         int iterILS = 0;
         while(iterILS <= this->m_maxIterILS){
-            std::cout << "IterIls: " << iterILS << std::endl;
+            std::cout << "IterIls: " << iterILS << std::endl;   
             s = LocalSearch::algorithm(problem_data, s);
 
             if(best.objective_function - s.objective_function > EPS_FO){
