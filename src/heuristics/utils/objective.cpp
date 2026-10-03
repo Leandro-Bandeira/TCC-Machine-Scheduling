@@ -2,6 +2,7 @@
 #include "../models/job.hpp"
 #include "utils.hpp"
 #include <algorithm>
+#include <iostream>
 
 // Núcleo compartilhado por evaluate()/evaluateIntraRoute/evaluateInterRoute:
 // percorre uma rota, calcula tardiness/não-alocados/completion, e preenche os
@@ -81,12 +82,12 @@ Como ele foi alterado, sua posição também foi alterada
 Para validar a restrição de recurso, devemos comparar seu novo posicionamento, com o seu posicionamento em outras máquinas
 */
 static bool checkAgainstCommitted(Solution& solution, const std::vector<std::vector<uint64_t>>& current_bits,
-                                   const std::vector<int>& touched, int current_route,
+                                   const std::vector<int>& touched, int current_route, int skip_route2,
                                    int count_machines, double violation_penalty, double& total) {
     for (int r : touched) {
         const std::vector<uint64_t>& a = current_bits[r];
         for (int k = 0; k < count_machines; k++) {
-            if (k == current_route) continue;
+            if (k == current_route || k == skip_route2) continue;
             const std::vector<uint64_t>& b = solution.resource_route_bits[r][k];
             for (size_t w = 0; w < a.size(); w++) {
                 if (a[w] & b[w]) {
@@ -94,7 +95,28 @@ static bool checkAgainstCommitted(Solution& solution, const std::vector<std::vec
                     return true;
                 }
             }
-            
+        }
+    }
+    return false;
+}
+
+static bool checkCommittedVsCommitted(const Solution& solution, int count_machines, int num_resources,
+                                      int skip1, int skip2, double violation_penalty, double& total) {
+    for (int r = 0; r < num_resources; r++) {
+        const auto& per_route = solution.resource_route_bits[r];
+        for (int k1 = 0; k1 < count_machines; k1++) {
+            if (k1 == skip1 || k1 == skip2) continue;
+            for (int k2 = k1 + 1; k2 < count_machines; k2++) {
+                if (k2 == skip1 || k2 == skip2) continue;
+                const auto& a = per_route[k1];
+                const auto& b = per_route[k2];
+                for (size_t w = 0; w < a.size(); w++) {
+                    if (a[w] & b[w]) {
+                        total += violation_penalty;
+                        return true;
+                    }
+                }
+            }
         }
     }
     return false;
@@ -220,6 +242,7 @@ TrialTouched: Recursos que foram tocados
 */
 double evaluateIntraRoute(Solution& solution, const ProblemData& problem_data, int m) {
     const int count_machines = problem_data.getCountMachines();
+    const int num_resources = problem_data.getNumResources();
     const double resource_violation_penalty = problem_data.getResourceViolationPenalty();
 
     double total = 0.0;
@@ -233,9 +256,15 @@ double evaluateIntraRoute(Solution& solution, const ProblemData& problem_data, i
 
     if (count_machines > 1) {
         bool violated = checkAgainstCommitted(
-            solution, solution.trial_bits, solution.trial_touched, m, count_machines,
+            solution, solution.trial_bits, solution.trial_touched, m, -1, count_machines,
             resource_violation_penalty, total
         );
+        if (!violated) {
+            checkCommittedVsCommitted(
+                solution, count_machines, num_resources, m, -1,
+                resource_violation_penalty, total
+            );
+        }
         clearTrialBuffer(solution.trial_bits, solution.trial_seen, solution.trial_touched);
     }
 
@@ -249,6 +278,7 @@ double evaluateIntraRoute(Solution& solution, const ProblemData& problem_data, i
 // já que uma pode violar contra a outra além de violar contra o resto.
 double evaluateInterRoute(Solution& solution, const ProblemData& problem_data, int m, int l) {
     const int count_machines = problem_data.getCountMachines();
+    const int num_resources = problem_data.getNumResources();
     const double resource_violation_penalty = problem_data.getResourceViolationPenalty();
     
     double total = 0.0;
@@ -266,27 +296,45 @@ double evaluateInterRoute(Solution& solution, const ProblemData& problem_data, i
 
     if (count_machines > 1) {
         bool violated = false;
-        // m contra l: só entra em jogo se as duas realmente tocam o mesmo resource.
-        /*
+        // 1. Checa m contra l (ambas no estado trial)
         for (int r : solution.trial_touched) {
             if (!solution.trial_seen2[r]) continue;
-            const std::vector<uint64_t>& a = solution.trial_bits[r];
-            const std::vector<uint64_t>& b = solution.trial_bits2[r];
-            bool overlap = false;
+            const auto& a = solution.trial_bits[r];
+            const auto& b = solution.trial_bits2[r];
             for (size_t w = 0; w < a.size(); w++) {
-                if (a[w] & b[w]) { overlap = true; break; }
+                if (a[w] & b[w]) {
+                    violated = true;
+                    total += resource_violation_penalty;
+                    break;
+                }
             }
-            if (overlap) total += resource_violation_penalty;
+            if (violated) break;
         }
-        */
-        // m e l contra o resto (rotas que não mudaram nesse movimento).
-        violated = checkAgainstCommitted(solution, solution.trial_bits, solution.trial_touched, m, count_machines,
-                               resource_violation_penalty, total);
-        
-        if (!violated){
-        checkAgainstCommitted(solution, solution.trial_bits2, solution.trial_touched2,  l, count_machines,
-                               resource_violation_penalty, total);
+
+        // 2. Checa m contra as demais rotas (k != m e k != l)
+        if (!violated) {
+            violated = checkAgainstCommitted(
+                solution, solution.trial_bits, solution.trial_touched, m, l,
+                count_machines, resource_violation_penalty, total
+            );
         }
+
+        // 3. Checa l contra as demais rotas (k != m e k != l)
+        if (!violated) {
+            violated = checkAgainstCommitted(
+                solution, solution.trial_bits2, solution.trial_touched2, l, m,
+                count_machines, resource_violation_penalty, total
+            );
+        }
+
+        // 4. Checa violação entre rotas estáticas k1 < k2 (k1, k2 != m e k1, k2 != l)
+        if (!violated) {
+            checkCommittedVsCommitted(
+                solution, count_machines, num_resources, m, l,
+                resource_violation_penalty, total
+            );
+        }
+
         clearTrialBuffer(solution.trial_bits, solution.trial_seen, solution.trial_touched);
         clearTrialBuffer(solution.trial_bits2, solution.trial_seen2, solution.trial_touched2);
     }

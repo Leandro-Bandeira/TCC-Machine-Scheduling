@@ -5,6 +5,7 @@
 #include <nlohmann/json.hpp>
 #include "../models/job.hpp"
 #include "../models/ProblemData.hpp"
+#include "../models/solution.hpp"
 
 using json = nlohmann::json;
 
@@ -14,6 +15,7 @@ class ReadInstance{
     public:
         // Ponto de entrada: lê o arquivo em `path` e retorna ProblemData completo para a máquina.
         static ProblemData readData(const std::string& path, const int id_machine);
+        static void saveOutputJson(const std::string& input_path, int machine_id, const Solution& solution, double solve_time_seconds);
 
     private:
         // Parseia apenas os jobs atribuídos à máquina e ainda não processados (Status_Processed == "").

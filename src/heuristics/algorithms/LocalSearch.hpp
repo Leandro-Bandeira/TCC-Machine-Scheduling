@@ -31,4 +31,5 @@ class LocalSearch{
         static Solution algorithm(const ProblemData& problemData, Solution solution);
         static bool bestImprovementSwapInterRoute(const ProblemData& problemData, Solution& solution);
         static bool bestImprovementRealocate(const ProblemData& problemData, Solution& solution);
+        static bool bestImprovementRemoveJob(const ProblemData& problemData, Solution& solution);
 };

@@ -27,7 +27,7 @@ class ProblemData{
             // bits ultrapassem H. Portanto, H / 64 + 1 palavras cobrem todos os slots exatos.
             num_words = H / 64 + 1;
             /* Usamos + 1 para casos onde count_machines  = 1*/
-            resource_violation_penalty = weight_not_allocated * count_machines * getNumJobs() ;
+            resource_violation_penalty = 1e9;
         }
 
         const std::vector<Job>& getJobs() const { return jobs; }

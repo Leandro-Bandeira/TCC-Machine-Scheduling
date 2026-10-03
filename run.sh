@@ -7,11 +7,13 @@ cd "$(dirname "$0")"
 CONFIG="run_config.json"
 SKIP_EXISTING=false
 USE_GUROBI=false
+USE_WARM_START=false
 
 for arg in "$@"; do
   case "$arg" in
     --skip-existing) SKIP_EXISTING=true ;;
     --use-gurobi) USE_GUROBI=true ;;
+    --use-warm-start) USE_WARM_START=true ;;
     *) CONFIG="$arg" ;;
   esac
 done
@@ -77,9 +79,14 @@ while IFS='|' read -r DT STATUSES MACHINES; do
     GUROBI_ARG="--use-gurobi"
   fi
 
+  WARM_START_ARG=""
+  if [ "$USE_WARM_START" = true ]; then
+    WARM_START_ARG="--use-warm-start"
+  fi
+
   echo ""
   echo ">>> [2/3] optimize.py"
-  python3 src/main/optimize.py --dt "$DT" $ONLY_STATUS_ARG $ONLY_MACHINES_ARG $GUROBI_ARG
+  python3 src/main/optimize.py --dt "$DT" $ONLY_STATUS_ARG $ONLY_MACHINES_ARG $GUROBI_ARG $WARM_START_ARG
 
   echo ""
   echo ">>> [3/3] data_output_process.py"
