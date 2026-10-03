@@ -16,18 +16,18 @@
 // vencedor ser aplicado).
 template <typename BitsAccessor>
 static double computeRoute(std::vector<Job>& route, const ProblemData& problem_data, BitsAccessor getBits,
-                            std::vector<bool>& seen, std::vector<int>& touched, bool write_job_fields) {
+                            std::vector<bool>& seen, std::vector<int>& touched, bool write_job_fields, int& out_allocated_jobs) {
     const std::vector<std::vector<int>>& setup_matrix = problem_data.getSetupMatrix();
     const int H = problem_data.getH();
     const int first_slot = problem_data.getFirstSlot();
     const int big_setup = problem_data.getBigSetup();
     const int count_machines = problem_data.getCountMachines();
     const std::vector<int>& next_start_slots = problem_data.getNextStartSlots();
-    const double weight_not_allocated = problem_data.getWeightNotAllocated();
     const double epsilon = problem_data.getEpsilon();
 
-    int sum_tardiness = 0, sum_jobs_not_allocated = 0, sum_completion_time = 0;
+    double sum_tardiness = 0.0, sum_completion_time = 0.0;
     int last_completion_time = 0, prev_idx = 0;
+    out_allocated_jobs = 0;
 
     for (Job& job : route) {
         if (job.idx == 0) continue;
@@ -38,13 +38,13 @@ static double computeRoute(std::vector<Job>& route, const ProblemData& problem_d
 
         if (start > H) {
             if (write_job_fields) { job.start = -1; job.end = -1; }
-            sum_jobs_not_allocated += 1;
             continue;
         }
 
         int end = start + job.processing_slots;
         if (write_job_fields) { job.start = start; job.end = end; }
 
+        out_allocated_jobs += 1;
         sum_tardiness += std::max(0, end - job.due_date_slot);
         prev_idx = job.idx;
         sum_completion_time += end;
@@ -62,7 +62,7 @@ static double computeRoute(std::vector<Job>& route, const ProblemData& problem_d
         }
     }
 
-    return sum_tardiness + weight_not_allocated * sum_jobs_not_allocated + epsilon * sum_completion_time;
+    return sum_tardiness + epsilon * sum_completion_time;
 }
 
 // Devolve o buffer ao estado zerado, só nas entradas que foram tocadas.
@@ -75,100 +75,47 @@ static void clearTrialBuffer(std::vector<std::vector<uint64_t>>& bits, std::vect
     touched.clear();
 }
 
-/*
-No movimento intraroute, quando alteramos uma unica rota
-Dentro de current_bits, temos o posicionamento em bits do recurso tocado em relação a quantia de palavras W
-Como ele foi alterado, sua posição também foi alterada
-Para validar a restrição de recurso, devemos comparar seu novo posicionamento, com o seu posicionamento em outras máquinas
-*/
-static bool checkAgainstCommitted(Solution& solution, const std::vector<std::vector<uint64_t>>& current_bits,
-                                   const std::vector<int>& touched, int current_route, int skip_route2,
-                                   int count_machines, double violation_penalty, double& total) {
-    for (int r : touched) {
-        const std::vector<uint64_t>& a = current_bits[r];
-        for (int k = 0; k < count_machines; k++) {
-            if (k == current_route || k == skip_route2) continue;
-            const std::vector<uint64_t>& b = solution.resource_route_bits[r][k];
-            for (size_t w = 0; w < a.size(); w++) {
-                if (a[w] & b[w]) {
-                    total += violation_penalty; 
-                    return true;
-                }
-            }
-        }
-    }
-    return false;
-}
-
-static bool checkCommittedVsCommitted(const Solution& solution, int count_machines, int num_resources,
-                                      int skip1, int skip2, double violation_penalty, double& total) {
+// Conta a quantidade exata de pares de rotas (k1 < k2) que violam a restrição de recurso r.
+template <typename BitsAccessor>
+static int countResourceViolations(int num_resources, int count_machines, BitsAccessor getBits) {
+    if (count_machines <= 1) return 0;
+    int violations = 0;
     for (int r = 0; r < num_resources; r++) {
-        const auto& per_route = solution.resource_route_bits[r];
         for (int k1 = 0; k1 < count_machines; k1++) {
-            if (k1 == skip1 || k1 == skip2) continue;
+            const std::vector<uint64_t>& a = getBits(r, k1);
             for (int k2 = k1 + 1; k2 < count_machines; k2++) {
-                if (k2 == skip1 || k2 == skip2) continue;
-                const auto& a = per_route[k1];
-                const auto& b = per_route[k2];
+                const std::vector<uint64_t>& b = getBits(r, k2);
                 for (size_t w = 0; w < a.size(); w++) {
                     if (a[w] & b[w]) {
-                        total += violation_penalty;
-                        return true;
+                        violations++;
+                        break; // Próximo par (k1, k2) para o recurso r
                     }
                 }
             }
         }
     }
-    return false;
+    return violations;
 }
 
 // Avalia todas as rotas da solução e retorna a FO total.
-//
-// Cache por rota (solution.route_caches): se a rota não foi invalidada desde a
-// última chamada (is_dirty == false), reaproveita cost em O(1) em vez de
-// refazer o loop de jobs — só rotas efetivamente alteradas por um movimento de
-// LocalSearch/perturbação são recalculadas.
-//
-// Após avaliar todas as rotas, verifica a restrição de big_setup cross-rota:
-// jobs com mesmo resource_id em rotas diferentes devem ter gap >= big_setup.
-//
-// Implementação via bucket bitset (solution.resource_route_bits[resource_idx][rota]):
-// cada bucket agrega (OR) a ocupação + zona de exclusão [start, end+big_setup)
-// de TODOS os jobs daquele resource_id naquela rota. Dois jobs de rotas
-// diferentes violam a restrição sse os buckets das duas rotas se sobrepõem em
-// alguma posição (AND != 0) — estender só pra frente, em todo job, já cobre
-// violação nas duas direções (quem termina primeiro "invade" o início do
-// outro, e vice-versa). A Fase 1 já percorre (rota, job) pra calcular
-// start/end — atualiza o bucket correspondente ali mesmo, sem custo extra de
-// descobrir "qual rota" (m já é a variável do loop). A Fase 2 não escaneia
-// job nenhum: só itera os buckets (R x count_machines, pequeno e fixo).
 double evaluate(Solution& solution, const ProblemData& problem_data) {
     const int count_machines = problem_data.getCountMachines();
     const int num_resources = problem_data.getNumResources();
     const double resource_violation_penalty = problem_data.getResourceViolationPenalty();
 
-    // route_caches e resource_route_bits já vêm dimensionados por
-    // Solution::initEvalBuffers (chamado 1x em ILS::construction()) e
-    // preservados por cópia em toda a vida da solução — sem check aqui.
     double total = 0.0;
+    int total_allocated = 0;
 
     for (int m = 0; m < (int)solution.routes.size(); m++) {
         auto& route = solution.routes[m];
         RouteCache& cache = solution.route_caches[m];
 
-        // Cache hit: rota não mudou desde a última avaliação — reaproveita em O(1).
-        // Os buckets de resource_route_bits que essa rota contribui também não
-        // mudaram (rota não tocada), não precisa mexer neles.
         if (!cache.is_dirty) {
             total += cache.cost;
+            total_allocated += cache.allocated_jobs;
             continue;
         }
 
-        // Antes de recalcular, zera só os buckets que essa rota tocou da ÚLTIMA
-        // vez (cache.touched_resources — lista pequena, deduplicada). Não dá pra
-        // usar os jobs ATUAIS da rota pra saber o que limpar: se um job SAIU da
-        // rota (moveu pra outra), ele não aparece mais no loop, mas o bit antigo
-        // dele continua marcado — só a lista salva da vez anterior sabe disso.
         if (count_machines > 1) {
             for (int r : cache.touched_resources) {
                 auto& bucket = solution.resource_route_bits[r][m];
@@ -176,167 +123,114 @@ double evaluate(Solution& solution, const ProblemData& problem_data) {
             }
         }
 
-        // Cache miss: rota foi invalidada (movimento a alterou) — recalcula do zero.
-        // Monta a lista NOVA de resources tocados (deduplicada via 'seen', R é
-        // pequeno) — substitui cache.touched_resources ao final, pra próxima vez.
         std::vector<bool> seen(count_machines > 1 ? num_resources : 0, false);
         std::vector<int> new_touched;
 
         cache.cost = computeRoute(
             route, problem_data,
             [&](int r) -> std::vector<uint64_t>& { return solution.resource_route_bits[r][m]; }, seen,
-            new_touched, true);
+            new_touched, true, cache.allocated_jobs);
         cache.is_dirty = false;
 
         if (count_machines > 1) cache.touched_resources = std::move(new_touched);
 
         total += cache.cost;
+        total_allocated += cache.allocated_jobs;
     }
 
-    // Só verifica big_setup se há mais de uma rota (restrição cross-rota).
-    // Não escaneia job nenhum: só os buckets (R x count_machines, pequeno).
-    //
-    // Penalidade = weight_not_allocated * count_machines, não weight_not_allocated
-    // puro: esse último só é calibrado pra dominar "1 job não alocado" (tardiness
-    // máximo de (n-1)*H). Violação de recurso é restrição HARD no MIP (nunca
-    // aparece no espaço viável dele) — se penalizada com o mesmo peso de "não
-    // alocado", em instâncias onde a FO viável real supera (n-1)*H (ex.: jobs
-    // empurrados bem depois de H por causa da grade de turnos), a busca prefere
-    // a solução INFEASÍVEL (paga só 1x weight_not_allocated) a qualquer solução
-    // viável de fato. O fator count_machines garante folga extra de dominância.
-    
-    
+    int total_jobs = problem_data.getNumJobs() - 1;
+    int unallocated = total_jobs - total_allocated;
+    total += unallocated * problem_data.getWeightNotAllocated();
+
     if (count_machines > 1) {
-        for (int r = 0; r < num_resources; r++) {
-            const auto& per_route = solution.resource_route_bits[r];
-            
-            for (int k1 = 0; k1 < count_machines; k1++) {
-                for (int k2 = k1 + 1; k2 < count_machines; k2++) {
-                    const std::vector<uint64_t>& a = per_route[k1];
-                    const std::vector<uint64_t>& b = per_route[k2];
-
-                    for (size_t w = 0; w < a.size(); w++) {
-                        if (a[w] & b[w]) {
-                            total += resource_violation_penalty;
-                            return total;
-                        }
-                    }
-
-                }
-                
-            }
-        }
+        int violations = countResourceViolations(num_resources, count_machines,
+            [&](int r, int k) -> const std::vector<uint64_t>& {
+                return solution.resource_route_bits[r][k];
+            });
+        total += violations * resource_violation_penalty;
     }
 
     return total;
 }
 
-/*
-Como as rotas k != m não se alteraram, elas possuem o mesmo custo de rota então podemos apenas aproveitar seus custos
-Porém na rota atual devemos computar toda a rota, por isso chamamos o computeRoute para a rota m.
-
-Perceba que enviamos uma função lambda (getBits), essa função recebe o resource_idx e retorna seus bits que são apenas os TrialBits
-TrialBits: Bits de um determinado recurso
-TrialSeen: Recursos que foram não foram vistos e colocamos como vistos
-TrialTouched: Recursos que foram tocados
-*/
 double evaluateIntraRoute(Solution& solution, const ProblemData& problem_data, int m) {
     const int count_machines = problem_data.getCountMachines();
     const int num_resources = problem_data.getNumResources();
     const double resource_violation_penalty = problem_data.getResourceViolationPenalty();
 
     double total = 0.0;
-    for (int k = 0; k < (int)solution.routes.size(); k++)
-        if (k != m) total += solution.route_caches[k].cost;
+    int total_allocated = 0;
+    for (int k = 0; k < (int)solution.routes.size(); k++) {
+        if (k != m) {
+            total += solution.route_caches[k].cost;
+            total_allocated += solution.route_caches[k].allocated_jobs;
+        }
+    }
 
+    int alloc_m = 0;
     total += computeRoute(
         solution.routes[m], problem_data,
         [&](int resource_idx) -> std::vector<uint64_t>& { return solution.trial_bits[resource_idx]; }, solution.trial_seen,
-        solution.trial_touched, false);
+        solution.trial_touched, false, alloc_m);
+    total_allocated += alloc_m;
+
+    int total_jobs = problem_data.getNumJobs() - 1;
+    int unallocated = total_jobs - total_allocated;
+    total += unallocated * problem_data.getWeightNotAllocated();
 
     if (count_machines > 1) {
-        bool violated = checkAgainstCommitted(
-            solution, solution.trial_bits, solution.trial_touched, m, -1, count_machines,
-            resource_violation_penalty, total
-        );
-        if (!violated) {
-            checkCommittedVsCommitted(
-                solution, count_machines, num_resources, m, -1,
-                resource_violation_penalty, total
-            );
-        }
+        int violations = countResourceViolations(num_resources, count_machines,
+            [&](int r, int k) -> const std::vector<uint64_t>& {
+                return (k == m) ? solution.trial_bits[r] : solution.resource_route_bits[r][k];
+            });
         clearTrialBuffer(solution.trial_bits, solution.trial_seen, solution.trial_touched);
+        total += violations * resource_violation_penalty;
     }
 
     return total;
 }
 
-// Avalia as rotas m e l no estado ATUAL de solution.routes (o chamador já
-// aplicou o movimento — troca/reinserção entre as duas rotas — antes de
-// chamar), sem mutar nada global. Só m e l mudam nesse movimento — as outras
-// usam custo já calculado (cache). Precisa de dois buffers de bits (m e l),
-// já que uma pode violar contra a outra além de violar contra o resto.
 double evaluateInterRoute(Solution& solution, const ProblemData& problem_data, int m, int l) {
     const int count_machines = problem_data.getCountMachines();
     const int num_resources = problem_data.getNumResources();
     const double resource_violation_penalty = problem_data.getResourceViolationPenalty();
     
     double total = 0.0;
-    for (int k = 0; k < (int)solution.routes.size(); k++)
-        if (k != m && k != l) total += solution.route_caches[k].cost;
+    int total_allocated = 0;
+    for (int k = 0; k < (int)solution.routes.size(); k++) {
+        if (k != m && k != l) {
+            total += solution.route_caches[k].cost;
+            total_allocated += solution.route_caches[k].allocated_jobs;
+        }
+    }
 
+    int alloc_m = 0, alloc_l = 0;
     total += computeRoute(
         solution.routes[m], problem_data,
         [&](int resource_idx) -> std::vector<uint64_t>& { return solution.trial_bits[resource_idx]; }, solution.trial_seen,
-        solution.trial_touched, false);
+        solution.trial_touched, false, alloc_m);
+    total_allocated += alloc_m;
+
     total += computeRoute(
         solution.routes[l], problem_data,
         [&](int resource_idx) -> std::vector<uint64_t>& { return solution.trial_bits2[resource_idx]; }, solution.trial_seen2,
-        solution.trial_touched2, false);
+        solution.trial_touched2, false, alloc_l);
+    total_allocated += alloc_l;
+
+    int total_jobs = problem_data.getNumJobs() - 1;
+    int unallocated = total_jobs - total_allocated;
+    total += unallocated * problem_data.getWeightNotAllocated();
 
     if (count_machines > 1) {
-        bool violated = false;
-        // 1. Checa m contra l (ambas no estado trial)
-        for (int r : solution.trial_touched) {
-            if (!solution.trial_seen2[r]) continue;
-            const auto& a = solution.trial_bits[r];
-            const auto& b = solution.trial_bits2[r];
-            for (size_t w = 0; w < a.size(); w++) {
-                if (a[w] & b[w]) {
-                    violated = true;
-                    total += resource_violation_penalty;
-                    break;
-                }
-            }
-            if (violated) break;
-        }
-
-        // 2. Checa m contra as demais rotas (k != m e k != l)
-        if (!violated) {
-            violated = checkAgainstCommitted(
-                solution, solution.trial_bits, solution.trial_touched, m, l,
-                count_machines, resource_violation_penalty, total
-            );
-        }
-
-        // 3. Checa l contra as demais rotas (k != m e k != l)
-        if (!violated) {
-            violated = checkAgainstCommitted(
-                solution, solution.trial_bits2, solution.trial_touched2, l, m,
-                count_machines, resource_violation_penalty, total
-            );
-        }
-
-        // 4. Checa violação entre rotas estáticas k1 < k2 (k1, k2 != m e k1, k2 != l)
-        if (!violated) {
-            checkCommittedVsCommitted(
-                solution, count_machines, num_resources, m, l,
-                resource_violation_penalty, total
-            );
-        }
-
+        int violations = countResourceViolations(num_resources, count_machines,
+            [&](int r, int k) -> const std::vector<uint64_t>& {
+                if (k == m) return solution.trial_bits[r];
+                if (k == l) return solution.trial_bits2[r];
+                return solution.resource_route_bits[r][k];
+            });
         clearTrialBuffer(solution.trial_bits, solution.trial_seen, solution.trial_touched);
         clearTrialBuffer(solution.trial_bits2, solution.trial_seen2, solution.trial_touched2);
+        total += violations * resource_violation_penalty;
     }
 
     return total;

@@ -313,30 +313,28 @@ bool LocalSearch::bestImprovementRealocate(const ProblemData &problemData, Solut
 bool LocalSearch::bestImprovementRemoveJob(const ProblemData &problemData, Solution &solution){
     double bestDelta = solution.objective_function;
     int best_route = -1, best_i = -1;
-    int H = problemData.getH();
 
     for (int m = 0; m < (int)solution.routes.size(); m++) {
         std::vector<Job>& route = solution.routes[m];
+        if (route.size() <= 2) continue; // apenas dummies [D, D]
 
         for (size_t i = 1; i < route.size() - 1; i++) {
-            if (route[i].release_date_slot > H) continue;
+            std::vector<Job> temp_route = route;
+            temp_route.erase(temp_route.begin() + i);
 
-            int orig_release = route[i].release_date_slot;
-            route[i].release_date_slot = H + 1;
-
+            solution.routes[m].swap(temp_route);
             double delta = evaluateIntraRoute(solution, problemData, m);
             if (bestDelta - delta > EPS_FO) {
                 bestDelta = delta;
                 best_route = m;
                 best_i = i;
             }
-
-            route[i].release_date_slot = orig_release;
+            solution.routes[m].swap(temp_route); // desfaz
         }
     }
 
     if (best_route != -1) {
-        solution.routes[best_route][best_i].release_date_slot = H + 1;
+        solution.routes[best_route].erase(solution.routes[best_route].begin() + best_i);
         solution.invalidateRoute(best_route);
         solution.objective_function = evaluate(solution, problemData);
         Debug::log("Movimento removeJob, BestDelta aceito: " + std::to_string(bestDelta) + "\nBestDelta de fato " + std::to_string(solution.objective_function));

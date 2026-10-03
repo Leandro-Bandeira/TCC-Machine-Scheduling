@@ -11,6 +11,7 @@
 */
 struct RouteCache {
     double cost = 0.0;
+    int allocated_jobs = 0;
     bool is_dirty = true;
 
     // resource_idx distintos (sem repetição) que essa rota tocou na última vez

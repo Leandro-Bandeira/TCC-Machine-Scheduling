@@ -26,8 +26,8 @@ class ProblemData{
             // O std::min(H + 1, end + big_setup) em objective.cpp impede que os
             // bits ultrapassem H. Portanto, H / 64 + 1 palavras cobrem todos os slots exatos.
             num_words = H / 64 + 1;
-            /* Usamos + 1 para casos onde count_machines  = 1*/
-            resource_violation_penalty = 1e9;
+            // Penalidade por 1 violação de recurso é estritamente maior que o custo de não alocar todos os jobs + 1
+            resource_violation_penalty = (double)(getNumJobs() - 1) * weight_not_allocated + 1.0;
         }
 
         const std::vector<Job>& getJobs() const { return jobs; }
