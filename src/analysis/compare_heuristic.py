@@ -1,14 +1,13 @@
 """
-Roda o heuristic (ILS) para cada instância listada em run_config.json e
-compara o resultado com o output.json (solução do MIP), reportando
-diferença de função objetivo e de tempo de execução.
+Roda/lê o output_heuristic.json para cada instância listada em run_config.json
+e compara o resultado com o output.json (solução do MIP), reportando
+diferença de função objetivo, não alocados e tempo de execução.
 
 Gera data/heuristic_vs_mip.csv.
 """
 
 import csv
 import json
-import re
 import subprocess
 import sys
 from datetime import datetime
@@ -21,9 +20,6 @@ HEURISTICS_DIR = BASE_DIR / "src" / "heuristics"
 HEURISTIC_BIN = HEURISTICS_DIR / "heuristic"
 OUT_CSV = BASE_DIR / "data" / "heuristic_vs_mip.csv"
 
-FO_RE = re.compile(r"^Best solution: ([\-0-9.eE]+)", re.MULTILINE)
-TIME_RE = re.compile(r"Tempo total: ([\-0-9.eE]+)s")
-
 FIELDNAMES = [
     "dt",
     "status",
@@ -35,6 +31,9 @@ FIELDNAMES = [
     "heuristic_fo",
     "fo_diff",
     "fo_diff_pct",
+    "mip_gap",
+    "mip_unallocated",
+    "heuristic_unallocated",
     "mip_time_seconds",
     "heuristic_time_seconds",
     "time_diff_seconds",
@@ -51,25 +50,38 @@ def build_heuristic() -> None:
     subprocess.run(["make"], cwd=HEURISTICS_DIR, check=True)
 
 
-def run_heuristic(input_file: Path, machine_id: int) -> tuple[float, float]:
-    """Executa o binário e retorna (fo, tempo_segundos)."""
-    result = subprocess.run(
+def run_heuristic(input_file: Path, machine_id: int) -> None:
+    """Executa o binário da heurística C++, gerando output_heuristic.json."""
+    subprocess.run(
         [str(HEURISTIC_BIN), str(input_file), str(machine_id)],
         capture_output=True,
         text=True,
         check=True,
     )
-    fo_match = FO_RE.search(result.stdout)
-    time_match = TIME_RE.search(result.stdout)
-    if not fo_match or not time_match:
-        raise RuntimeError(
-            f"saída do heuristic não casou com o padrão esperado "
-            f"(input={input_file}, machine_id={machine_id})\n{result.stdout[-500:]}"
-        )
-    return float(fo_match.group(1)), float(time_match.group(1))
 
 
-def collect_comparisons(run_config: dict) -> list[dict]:
+def read_heuristic_json(
+    heuristic_file: Path, machine_id: int
+) -> tuple[float | None, float | None, int | None]:
+    """Lê os dados da máquina específica em output_heuristic.json."""
+    if not heuristic_file.exists():
+        return None, None, None
+    try:
+        with open(heuristic_file, encoding="utf-8") as f:
+            data = json.load(f)
+        for m in data.get("machines_scheduling", []):
+            if m.get("machine_id") == machine_id:
+                return (
+                    m.get("objective_function"),
+                    m.get("solve_time_seconds"),
+                    m.get("count_jobs_not_allocated", 0),
+                )
+    except Exception as e:
+        print(f"  [erro ao ler {heuristic_file}]: {e}")
+    return None, None, None
+
+
+def collect_comparisons(run_config: dict, skip_existing: bool = False) -> list[dict]:
     rows = []
 
     for dt, cfg in run_config.items():
@@ -80,6 +92,7 @@ def collect_comparisons(run_config: dict) -> list[dict]:
             instance_dir = TRUSTED_DIR / date_slug / status
             input_file = instance_dir / "input.json"
             output_file = instance_dir / "output.json"
+            output_heuristic_file = instance_dir / "output_heuristic.json"
 
             if not input_file.exists() or not output_file.exists():
                 print(f"[skip] {dt} / status={status}: input.json ou output.json ausente")
@@ -97,8 +110,7 @@ def collect_comparisons(run_config: dict) -> list[dict]:
                 m["machine_id"]: m["job_capacity"] for m in input_data.get("machines", [])
             }
 
-            # jobs_per_machine só conta jobs ainda não processados (Status_Processed vazio),
-            # que são os que de fato entram no sequenciamento — igual read_instance.cpp::parse_jobs
+            # jobs_per_machine só conta jobs ainda não processados (Status_Processed vazio)
             jobs_per_machine: dict[int, int] = {}
             for job in input_data.get("jobs", []):
                 if job.get("Status_Processed", "") != "":
@@ -117,18 +129,43 @@ def collect_comparisons(run_config: dict) -> list[dict]:
                 count_machines = job_capacity_by_id.get(machine_id)
 
                 mip_fo = mach.get("objective_function")
+                mip_gap = mach.get("mip_gap")
                 mip_time = mach.get("solve_time_seconds")
+                mip_unallocated = mach.get("count_jobs_not_allocated", 0)
 
-                print(f"[run] {dt} / status={status} / {machine_name} (machine_id={machine_id})")
-                try:
-                    heuristic_fo, heuristic_time = run_heuristic(input_file, machine_id)
-                except (RuntimeError, subprocess.CalledProcessError) as e:
-                    print(f"  [ERRO] {e}")
+                # Se skip_existing for False ou output_heuristic.json não existir, roda a heurística
+                heuristic_fo, heuristic_time, heuristic_unallocated = (None, None, None)
+                if skip_existing:
+                    heuristic_fo, heuristic_time, heuristic_unallocated = read_heuristic_json(
+                        output_heuristic_file, machine_id
+                    )
+
+                if heuristic_fo is None:
+                    print(
+                        f"[run] Executando heurística: {dt} / status={status} / {machine_name} (id={machine_id})"
+                    )
+                    try:
+                        run_heuristic(input_file, machine_id)
+                        (
+                            heuristic_fo,
+                            heuristic_time,
+                            heuristic_unallocated,
+                        ) = read_heuristic_json(output_heuristic_file, machine_id)
+                    except (RuntimeError, subprocess.CalledProcessError) as e:
+                        print(f"  [ERRO] {e}")
+                        continue
+
+                if heuristic_fo is None:
+                    print(
+                        f"  [AVISO] {machine_name} (id={machine_id}) não encontrada em {output_heuristic_file}"
+                    )
                     continue
 
-                fo_diff = heuristic_fo - mip_fo
-                fo_diff_pct = (fo_diff / mip_fo * 100) if mip_fo else float("nan")
-                time_diff = heuristic_time - mip_time
+                fo_diff = heuristic_fo - (mip_fo if mip_fo is not None else 0.0)
+                fo_diff_pct = (
+                    (fo_diff / mip_fo * 100) if (mip_fo and mip_fo != 0) else float("nan")
+                )
+                time_diff = (heuristic_time or 0.0) - (mip_time or 0.0)
 
                 rows.append(
                     {
@@ -142,15 +179,20 @@ def collect_comparisons(run_config: dict) -> list[dict]:
                         "heuristic_fo": heuristic_fo,
                         "fo_diff": fo_diff,
                         "fo_diff_pct": fo_diff_pct,
+                        "mip_gap": mip_gap,
+                        "mip_unallocated": mip_unallocated,
+                        "heuristic_unallocated": heuristic_unallocated,
                         "mip_time_seconds": mip_time,
                         "heuristic_time_seconds": heuristic_time,
                         "time_diff_seconds": time_diff,
                     }
                 )
                 print(
-                    f"  jobs={count_jobs} machines={count_machines}"
-                    f" | fo: mip={mip_fo:.6f} heuristic={heuristic_fo:.6f} diff={fo_diff:+.6f} ({fo_diff_pct:+.2f}%)"
-                    f" | tempo: mip={mip_time:.3f}s heuristic={heuristic_time:.3f}s diff={time_diff:+.3f}s"
+                    f"[{dt}/{status}] {machine_name} (id={machine_id})"
+                    f" | jobs={count_jobs} mach={count_machines}"
+                    f" | fo: mip={mip_fo} (gap={mip_gap}) heur={heuristic_fo:.4f} diff={fo_diff:+.4f}"
+                    f" | unallocated: mip={mip_unallocated} heur={heuristic_unallocated}"
+                    f" | tempo: mip={mip_time}s heur={heuristic_time:.3f}s"
                 )
 
     return rows
@@ -166,6 +208,19 @@ def write_csv(rows: list[dict], path: Path) -> None:
 
 
 def main() -> None:
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Compara a solução MIP (output.json) com a Heurística (output_heuristic.json)."
+    )
+    parser.add_argument(
+        "--skip-existing",
+        action="store_true",
+        default=False,
+        help="Reaproveita o output_heuristic.json existente sem re-executar a heurística.",
+    )
+    args = parser.parse_args()
+
     if not RUN_CONFIG_JSON.exists():
         print(f"run_config.json não encontrado em {RUN_CONFIG_JSON}")
         sys.exit(1)
@@ -175,7 +230,7 @@ def main() -> None:
     with open(RUN_CONFIG_JSON, encoding="utf-8") as f:
         run_config = json.load(f)
 
-    rows = collect_comparisons(run_config)
+    rows = collect_comparisons(run_config, skip_existing=args.skip_existing)
     if not rows:
         print("Nenhuma comparação gerada.")
         return
@@ -185,3 +240,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

@@ -1,7 +1,10 @@
 #include "ils.hpp"
 #include "../models/job.hpp"
 #include "../utils/objective.hpp"
+#include "../utils/read_instance.hpp"
 #include "../utils/utils.hpp"
+#include "../utils/Debug.hpp"
+#include "../utils/params.hpp"
 #include "LocalSearch.hpp"
 #include <cmath>
 #include <iomanip>
@@ -10,6 +13,8 @@
 #include <iostream>
 #include <random>
 #include <chrono>
+
+
 // Fase de construção GRASP (Greedy Randomized Adaptive Search Procedure).
 //
 // Estratégia:
@@ -242,8 +247,9 @@ Solution ILS::perturbation(Solution solution){
  *
  * Critério de aceitação: best-improvement puro (sem aceitar piora).
  */
-void ILS::algorithm(){
+void ILS::algorithm(const std::string& input_path, int machine_id){
     auto t0 = std::chrono::steady_clock::now();
+
 
     unsigned int seed = time(0);
     //seed = 1785203589;
@@ -251,24 +257,28 @@ void ILS::algorithm(){
     //std::cout << "Seed: " << seed << std::endl;
 
     Solution bestAllSolution;
+    
     for(int i = 0; i < this->m_maxIter; i++){
+        Debug::log("Iteração: "  + std::to_string(i));
         Solution s = construction();
 
         Solution best = s;
 
         int iterILS = 0;
         while(iterILS <= this->m_maxIterILS){
+            Debug::log("IterIls " + std::to_string(iterILS));   
             s = LocalSearch::algorithm(problem_data, s);
 
-            if(s.objective_function < best.objective_function){
+            if(best.objective_function - s.objective_function > EPS_FO){
                 best = s;
+                Debug::log("Resetou iterIls");
                 iterILS = 0;
             }
             s = perturbation(best);
             iterILS++;
         }
 
-        if(best.objective_function < bestAllSolution.objective_function){
+        if(bestAllSolution.objective_function - best.objective_function > EPS_FO ){
             bestAllSolution = best;
         }
     }
@@ -280,9 +290,13 @@ void ILS::algorithm(){
     // LocalSearch só atualiza objective_function após cada movimento, sem re-executar
     // evaluate() na solução real (roda apenas em cópias temporárias). Por isso job.start/end
     // ficam desatualizados em relação à ordem final das rotas — resincroniza aqui antes de reportar.
-    evaluate(bestAllSolution, problem_data);
-    //printRoutes(bestAllSolution);
+    bestAllSolution.objective_function = evaluate(bestAllSolution, problem_data);
+    printRoutes(bestAllSolution);
     this->solution = bestAllSolution;
 
     std::cout << "Best solution: " << bestAllSolution.objective_function << std::endl;
+
+    if (!input_path.empty()) {
+        ReadInstance::saveOutputJson(input_path, machine_id, bestAllSolution, elapsed);
+    }
 }

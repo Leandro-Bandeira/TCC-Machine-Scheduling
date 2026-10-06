@@ -31,7 +31,8 @@ int main(int argc, char** argv){
     }
     */
 
+    std::string input_path = argv[1];
     ILS ils(data);
-    ils.algorithm();
+    ils.algorithm(input_path, machine_to_use);
     return 0;
 }

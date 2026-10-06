@@ -267,7 +267,48 @@ class TimeIndex:
             ]
         }
 
-    def optimize(self, use_gurobi: bool = False):
+    def _apply_warm_start(self, heuristic_jobs: list[dict]):
+        model = self.model
+        jobs_data = self.jobs_data
+        print(
+            f"  [Warm Start] Inicializando modelo Pyomo com {len(heuristic_jobs)} jobs da heurística..."
+        )
+
+        # Inicializa todos os y como 1 (não alocado) e C como 0 por padrão
+        for job in jobs_data:
+            model.y[job.id].value = 1.0
+            model.C[job.id].value = 0.0
+
+        # Zerar todas as variáveis x
+        for idx in model.indexes:
+            model.x[idx].value = 0.0
+
+        warm_count = 0
+        proc_by_id = {job.id: job.processing_slots for job in jobs_data}
+
+        for hj in heuristic_jobs:
+            job_id = hj.get("job_id")
+            start = hj.get("start")
+            m = hj.get("sub_machine")
+
+            if start is not None and start != -1 and m is not None and m != -1:
+                if (job_id, start, m) in model.indexes:
+                    model.x[job_id, start, m].value = 1.0
+                    model.y[job_id].value = 0.0
+                    proc = proc_by_id.get(job_id, 0)
+                    model.C[job_id].value = start + proc
+                    warm_count += 1
+
+        print(
+            f"  [Warm Start] Sucesso: {warm_count} variáveis x_jtm inicializadas com 1.0"
+        )
+
+    def optimize(
+        self,
+        use_gurobi: bool = False,
+        use_warm_start: bool = False,
+        heuristic_jobs: list[dict] | None = None,
+    ):
         self._use_gurobi = use_gurobi
         model = self.model
         jobs_data = self.jobs_data
@@ -346,24 +387,30 @@ class TimeIndex:
         self.minimize_sum_tardiness(model, time_slots, jobs_data)
         print(f"[sum_tardiness] {perf_counter() - t0:.3f}s")
 
+        if use_warm_start and heuristic_jobs:
+            self._apply_warm_start(heuristic_jobs)
+
         model.write("model.lp", io_options={"symbolic_solver_labels": True})
 
         if self._use_gurobi:
-            self._solve_with_gurobi(model)
+            self._solve_with_gurobi(model, warmstart=use_warm_start)
         else:
-            self._solve_with_highs(model)
+            self._solve_with_highs(model, warmstart=use_warm_start)
 
         print(self.termination_condition)
         print(f"{self.objective_type}: {self.objective_value} (gap={self.mip_gap})")
 
-    def _solve_with_highs(self, model):
+    def _solve_with_highs(self, model, warmstart: bool = False):
         solver = HiGHS()
         solver.config.load_solutions = False
         solver.config.raise_exception_on_nonoptimal_result = False
         # solver.config.time_limit = 14400
         solver.config.solver_options = {"simplex_scale_strategy": 4}
         _t0 = perf_counter()
-        result = solver.solve(model, tee=True)
+        try:
+            result = solver.solve(model, tee=True, warmstart=warmstart)
+        except Exception:
+            result = solver.solve(model, tee=True)
         self.solve_time = perf_counter() - _t0
         self.termination_condition = str(result.termination_condition)
 
@@ -381,11 +428,12 @@ class TimeIndex:
             self.objective_value = None
             self.mip_gap = None
 
-    def _solve_with_gurobi(self, model):
+    def _solve_with_gurobi(self, model, warmstart: bool = False):
         solver = pyo.SolverFactory("gurobi")
         #solver.options["TimeLimit"] = 5
+        solver.options["MemLimit"] = 7.0
         _t0 = perf_counter()
-        result = solver.solve(model, tee=True)
+        result = solver.solve(model, tee=True, warmstart=warmstart)
         self.solve_time = perf_counter() - _t0
         self.termination_condition = str(result.solver.termination_condition)
 
@@ -417,9 +465,28 @@ def main(
     data_output_path: Path,
     only_machines: list[str] | None = None,
     use_gurobi: bool = False,
+    use_warm_start: bool = False,
 ):
     with open(data_input_path, "r") as f:
         data = json.load(f)
+
+    heuristic_data_by_machine = {}
+    if use_warm_start:
+        heuristic_file = data_input_path.parent / "output_heuristic.json"
+        if heuristic_file.exists():
+            print(f"[Warm Start] Lendo arquivo da heurística: {heuristic_file}")
+            try:
+                with open(heuristic_file, "r") as hf:
+                    h_json = json.load(hf)
+                    for m_entry in h_json.get("machines_scheduling", []):
+                        m_id = m_entry.get("machine_id")
+                        heuristic_data_by_machine[m_id] = m_entry.get("jobs", [])
+            except Exception as exc:
+                print(f"[Warm Start] Erro ao ler output_heuristic.json: {exc}")
+        else:
+            print(
+                f"[Warm Start] Aviso: {heuristic_file} não encontrado. Otimizando sem warm start."
+            )
 
     machines = data["machines"]
     jobs = data["jobs"]
@@ -453,7 +520,12 @@ def main(
             resources_data=machine_resources,
             big_setup=big_setup,
         )
-        time_index_model.optimize(use_gurobi=use_gurobi)
+        h_jobs = heuristic_data_by_machine.get(machine_id)
+        time_index_model.optimize(
+            use_gurobi=use_gurobi,
+            use_warm_start=use_warm_start,
+            heuristic_jobs=h_jobs,
+        )
 
         output = time_index_model.generate_output()
         all_machine_schedules.extend(output["machines_scheduling"])
@@ -501,6 +573,12 @@ def parse_args() -> argparse.Namespace:
         default=False,
         help="Usa Gurobi como solver em vez de HiGHS.",
     )
+    parser.add_argument(
+        "--use-warm-start",
+        action="store_true",
+        default=False,
+        help="Usa a solução de output_heuristic.json para inicializar o solver (warm start).",
+    )
     return parser.parse_args()
 
 
@@ -542,4 +620,5 @@ if __name__ == "__main__":
             data_output_path=data_output_path,
             only_machines=args.only_machines,
             use_gurobi=args.use_gurobi,
+            use_warm_start=args.use_warm_start,
         )

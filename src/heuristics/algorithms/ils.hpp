@@ -1,5 +1,6 @@
 #pragma once
 #include <algorithm>
+#include <string>
 #include "../models/ProblemData.hpp"
 #include "../models/solution.hpp"
 
@@ -29,7 +30,7 @@ class ILS{
         Solution construction();
         Solution perturbation(Solution solution);
         // Executa o algoritmo completo: construção + busca local VNS.
-        void algorithm();
+        void algorithm(const std::string& input_path = "", int machine_id = -1);
 
     private:
         const ProblemData& problem_data; // dados da instância (somente leitura)

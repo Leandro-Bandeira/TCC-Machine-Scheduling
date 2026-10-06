@@ -86,13 +86,16 @@ Solution
 
 ### 3.1 Representação em Bits: cada bit = um slot de tempo
 
-O horizonte de planejamento $H$ é discretizado em slots. Cada slot $t$ corresponde ao **bit $t$** em um vetor de palavras de 64 bits (`uint64_t`). O total de palavras necessárias é:
+O horizonte de planejamento $H$ é discretizado em slots. Cada slot $t$ corresponde ao **bit $t$** em um vetor de palavras de 64 bits (`uint64_t`). O código calcula o total de palavras necessárias (`num_words`) de forma estrita e otimizada através da seguinte fórmula:
 
 $$
-W = \left\lceil \frac{H + \text{big\_setup}}{64} \right\rceil
+W = \frac{H}{64} + 1
 $$
+*(nota: a divisão acima é a divisão inteira da linguagem C++, que atua como piso truncando os decimais).*
 
-O `big_setup` é somado ao horizonte porque a janela de exclusividade de um recurso pode se estender além do término do job.
+**Por que não usamos mais o `+ 2` ou `big_setup` na alocação?**
+1. **O limite superior rigoroso**: Durante a alocação de bits nas rotas, a heurística faz o uso de `std::min(H + 1, end + big_setup)`. Isso estabelece um teto rígido: a manipulação de memória nunca acessa posições referentes a um tempo além de $H$. O teto anula a necessidade matemática de embutir o termo `big_setup` na quantidade alocada de palavras.
+2. **Indexação exata**: O instante $H$ (sendo a contagem de base 0) requer alocação para índices de $0$ a $H$. Sendo `H / 64` o índice máximo da palavra (array dinâmico `uint64_t`) acessado de forma segura, a alocação estrita exige que o tamanho de posições contínuas de memória seja apenas índice máximo $+ 1$. Essa otimização de memória reduz diretamente as sobrecargas nas checagens operacionais das iterações contínuas ($\mathcal{O}(W)$ loops) sem incorrer em falhas de segmentação.
 
 **Dimensionamento típico** — $H$ geralmente representa **1 semana de produção**, considerando um turno médio de 8 horas por dia com slots de 5 minutos:
 

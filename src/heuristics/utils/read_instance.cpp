@@ -1,5 +1,7 @@
 #include "read_instance.hpp"
 #include <fstream>
+#include <iostream>
+#include <filesystem>
 #include <unordered_map>
 
 ProblemData ReadInstance::readData(const std::string& path, const int id_machine) {
@@ -136,4 +138,75 @@ std::vector<int> ReadInstance::parse_next_start_slots(const json& data, const in
         }
     }
     return nextStartSlot;
+}
+
+void ReadInstance::saveOutputJson(const std::string& input_path, int machine_id, const Solution& solution, double solve_time_seconds) {
+    namespace fs = std::filesystem;
+    fs::path input_p(input_path);
+    fs::path output_p = input_p.parent_path() / "output_heuristic.json";
+
+    json jobs_json = json::array();
+    int count_jobs_not_allocated = 0;
+
+    for (size_t m = 0; m < solution.routes.size(); m++) {
+        for (const auto& job : solution.routes[m]) {
+            if (job.idx == 0) continue; // skip dummy
+            if (job.start == -1) {
+                count_jobs_not_allocated++;
+            }
+            json j;
+            j["job_id"] = job.id;
+            j["start"] = job.start;
+            j["end"] = job.end;
+            j["sub_machine"] = (int)m;
+            j["resource_id"] = job.resource_idx;
+            j["processing_slots"] = job.processing_slots;
+            j["release_date_slot"] = job.release_date_slot;
+            j["due_date_slot"] = job.due_date_slot;
+            jobs_json.push_back(j);
+        }
+    }
+
+    json machine_json;
+    machine_json["machine_id"] = machine_id;
+    machine_json["objective_function"] = solution.objective_function;
+    machine_json["solve_time_seconds"] = solve_time_seconds;
+    machine_json["count_jobs_not_allocated"] = count_jobs_not_allocated;
+    machine_json["jobs"] = jobs_json;
+
+    json root;
+    if (fs::exists(output_p)) {
+        try {
+            std::ifstream in_file(output_p);
+            if (in_file.is_open()) {
+                root = json::parse(in_file);
+            }
+        } catch (...) {
+            root = json::object();
+        }
+    }
+
+    if (!root.contains("machines_scheduling") || !root["machines_scheduling"].is_array()) {
+        root["machines_scheduling"] = json::array();
+    }
+
+    bool updated = false;
+    for (auto& m_entry : root["machines_scheduling"]) {
+        if (m_entry.contains("machine_id") && m_entry["machine_id"] == machine_id) {
+            m_entry = machine_json;
+            updated = true;
+            break;
+        }
+    }
+    if (!updated) {
+        root["machines_scheduling"].push_back(machine_json);
+    }
+
+    std::ofstream out_file(output_p);
+    if (out_file.is_open()) {
+        out_file << root.dump(4) << std::endl;
+        std::cout << "\n[output] Salvo em: " << output_p.string() << std::endl;
+    } else {
+        std::cerr << "\n[erro] Não foi possível salvar em: " << output_p.string() << std::endl;
+    }
 }
