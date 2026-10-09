@@ -84,7 +84,7 @@ bool LocalSearch::bestImprovementOrOpt(const ProblemData &problemData, Solution 
     double bestDelta = solution.objective_function;
     int best_route = -1, best_i = -1, best_j = -1;
 
-    for (int m = 0; m < (int)solution.routes.size(); m++) {
+    for (int m = 0; m < problemData.getCountMachines(); m++) {
         std::vector<Job> original_route = solution.routes[m]; // conteúdo original da rota, pra montar candidatos e restaurar
         int n = (int)original_route.size();
 
@@ -148,7 +148,7 @@ bool LocalSearch::bestImprovementSwap(const ProblemData &problemData, Solution &
     
     int best_route = -1, best_i = -1, best_j = -1;
 
-    for (int m = 0; m < (int)solution.routes.size(); m++) {
+    for (int m = 0; m < problemData.getCountMachines(); m++) {
         std::vector<Job>& route = solution.routes[m];
 
         for (size_t i = 1; i < route.size() - 1; i++) {
@@ -306,55 +306,15 @@ bool LocalSearch::bestImprovementRealocate(const ProblemData &problemData, Solut
 }
 
 // ---------------------------------------------------------------------------
-// Remoção Intra-Rota (Job Removal)
-// ---------------------------------------------------------------------------
-//
-// Testa desalocar temporariamente cada job i de cada rota m (definindo seu
-// release_date_slot para H + 1). Se o menor custo resultante (que inclui a
-// penalidade por não alocação de 1 job, mas elimina atrasos extremos e/ou
-// conflitos de recursos cross-rota) for estritamente melhor do que a FO atual,
-// aceita a remoção e fixa release_date_slot = H + 1.
-bool LocalSearch::bestImprovementRemoveJob(const ProblemData &problemData, Solution &solution){
-    double bestDelta = solution.objective_function;
-    int best_route = -1, best_i = -1;
-
-    for (int m = 0; m < (int)solution.routes.size(); m++) {
-        std::vector<Job>& route = solution.routes[m];
-        if (route.size() <= 2) continue; // apenas dummies [D, D]
-
-        for (size_t i = 1; i < route.size() - 1; i++) {
-            std::vector<Job> temp_route = route;
-            temp_route.erase(temp_route.begin() + i);
-
-            solution.routes[m].swap(temp_route);
-            double delta = evaluateIntraRoute(solution, problemData, m);
-            if (bestDelta - delta > EPS_FO) {
-                bestDelta = delta;
-                best_route = m;
-                best_i = i;
-            }
-            solution.routes[m].swap(temp_route); // desfaz
-        }
-    }
-
-    if (best_route != -1) {
-        solution.routes[best_route].erase(solution.routes[best_route].begin() + best_i);
-        solution.invalidateRoute(best_route);
-        solution.objective_function = evaluate(solution, problemData);
-        Debug::log("Movimento removeJob, BestDelta aceito: " + std::to_string(bestDelta) + "\nBestDelta de fato " + std::to_string(solution.objective_function));
-        return true;
-    }
-    return false;
-}
-
-// ---------------------------------------------------------------------------
 // RVND — Random Variable Neighborhood Descent
 // ---------------------------------------------------------------------------
 //
-// Explora 8 vizinhanças em ordem aleatória:
-//   1 = Swap        2 = OrOpt-1      3 = 2-Opt
-//   4 = OrOpt-2     5 = OrOpt-3      6 = SwapInterRoute
-//   7 = Realocate   8 = RemoveJob
+// Explora 5 vizinhanças em ordem aleatória:
+//   1 = Swap Intra-Máquina 1x1
+//   2 = OrOpt-1 Intra-Máquina
+//   3 = OrOpt-2 Intra-Máquina
+//   4 = Swap Inter-Máquinas 1x1 (inclui Pool Virtual)
+//   5 = Realocate Inter-Máquinas (inclui Pool Virtual)
 //
 // Regra de atualização:
 //   - Sorteia vizinhança aleatória de NL
@@ -364,7 +324,7 @@ bool LocalSearch::bestImprovementRemoveJob(const ProblemData &problemData, Solut
 // Termina quando NL fica vazia: ótimo local simultâneo em todas as vizinhanças.
 Solution LocalSearch::algorithm(const ProblemData &problemData, Solution solution){
     solution.objective_function = evaluate(solution, problemData);
-    std::vector<int> NL = {1, 2, 3, 4, 5, 6, 7, 8};
+    std::vector<int> NL = {1, 2, 3, 4, 5};
     bool improved = false;
 
     while(!NL.empty()){
@@ -372,15 +332,12 @@ Solution LocalSearch::algorithm(const ProblemData &problemData, Solution solutio
         switch(NL[n]){
             case 1: improved = bestImprovementSwap(problemData, solution);              break;
             case 2: improved = bestImprovementOrOpt(problemData, solution, 1);          break;
-            //case 3: improved = bestImprovement2Opt(problemData, solution);              break;
             case 3: improved = bestImprovementOrOpt(problemData, solution, 2);          break;
-            //case 5: improved = bestImprovementOrOpt(problemData, solution, 3);          break;
             case 4: improved = bestImprovementSwapInterRoute(problemData, solution);    break;
             case 5: improved = bestImprovementRealocate(problemData, solution);         break;
-            case 6: improved = bestImprovementRemoveJob(problemData, solution);         break;
         }
         if(improved){
-            NL = {1, 2, 3, 4, 5, 6, 7, 8};
+            NL = {1, 2, 3, 4, 5};
         }else{
             std::swap(NL[n], NL.back());
             NL.pop_back();

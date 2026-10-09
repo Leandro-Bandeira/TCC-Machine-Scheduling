@@ -33,8 +33,8 @@ Solution ILS::construction(){
     const std::vector<std::vector<int>>& setup_matrix = this->problem_data.getSetupMatrix();
     const int count_machines = this->problem_data.getCountMachines();
 
-    // Inicializa count_machines rotas, cada uma com [dummy, dummy]
-    solution.routes.resize(count_machines, {Job(0,0,0,0,0,0), Job(0, 0, 0, 0, 0, 0)});
+    // Inicializa count_machines rotas reais + 1 rota para o pool virtual de não-alocados
+    solution.routes.resize(count_machines + 1, {Job(0,0,0,0,0,0), Job(0, 0, 0, 0, 0, 0)});
     solution.initEvalBuffers(this->problem_data.getNumResources(), this->problem_data.getNumWords(), count_machines);
     // Agrupa jobs por release_date — map ordena automaticamente por chave crescente
     std::map<int, std::vector<Job>> jobs_group_by_release;

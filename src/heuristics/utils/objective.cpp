@@ -14,9 +14,25 @@
 // true em evaluate() (commit real), false nas versões *Route (são só
 // simulação/candidato, não podem mutar o job de verdade até o movimento
 // vencedor ser aplicado).
+// Núcleo compartilhado por evaluate()/evaluateIntraRoute/evaluateInterRoute:
+// percorre uma rota, calcula tardiness/não-alocados/completion, e preenche os
+// bits de big_setup via getBits(resource_idx).
 template <typename BitsAccessor>
 static double computeRoute(std::vector<Job>& route, const ProblemData& problem_data, BitsAccessor getBits,
-                            std::vector<bool>& seen, std::vector<int>& touched, bool write_job_fields, int& out_allocated_jobs) {
+                            std::vector<bool>& seen, std::vector<int>& touched, bool write_job_fields,
+                            int& out_allocated_jobs, bool is_pool_route) {
+    out_allocated_jobs = 0;
+    if (is_pool_route) {
+        if (write_job_fields) {
+            for (Job& job : route) {
+                if (job.idx == 0) continue;
+                job.start = -1;
+                job.end = -1;
+            }
+        }
+        return 0.0;
+    }
+
     const std::vector<std::vector<int>>& setup_matrix = problem_data.getSetupMatrix();
     const int H = problem_data.getH();
     const int first_slot = problem_data.getFirstSlot();
@@ -27,7 +43,6 @@ static double computeRoute(std::vector<Job>& route, const ProblemData& problem_d
 
     double sum_tardiness = 0.0, sum_completion_time = 0.0;
     int last_completion_time = 0, prev_idx = 0;
-    out_allocated_jobs = 0;
 
     for (Job& job : route) {
         if (job.idx == 0) continue;
@@ -109,6 +124,7 @@ double evaluate(Solution& solution, const ProblemData& problem_data) {
     for (int m = 0; m < (int)solution.routes.size(); m++) {
         auto& route = solution.routes[m];
         RouteCache& cache = solution.route_caches[m];
+        bool is_pool = (m >= count_machines);
 
         if (!cache.is_dirty) {
             total += cache.cost;
@@ -116,7 +132,7 @@ double evaluate(Solution& solution, const ProblemData& problem_data) {
             continue;
         }
 
-        if (count_machines > 1) {
+        if (count_machines > 1 && !is_pool) {
             for (int r : cache.touched_resources) {
                 auto& bucket = solution.resource_route_bits[r][m];
                 std::fill(bucket.begin(), bucket.end(), 0ULL);
@@ -129,10 +145,10 @@ double evaluate(Solution& solution, const ProblemData& problem_data) {
         cache.cost = computeRoute(
             route, problem_data,
             [&](int r) -> std::vector<uint64_t>& { return solution.resource_route_bits[r][m]; }, seen,
-            new_touched, true, cache.allocated_jobs);
+            new_touched, true, cache.allocated_jobs, is_pool);
         cache.is_dirty = false;
 
-        if (count_machines > 1) cache.touched_resources = std::move(new_touched);
+        if (count_machines > 1 && !is_pool) cache.touched_resources = std::move(new_touched);
 
         total += cache.cost;
         total_allocated += cache.allocated_jobs;
@@ -168,10 +184,11 @@ double evaluateIntraRoute(Solution& solution, const ProblemData& problem_data, i
     }
 
     int alloc_m = 0;
+    bool is_pool = (m >= count_machines);
     total += computeRoute(
         solution.routes[m], problem_data,
         [&](int resource_idx) -> std::vector<uint64_t>& { return solution.trial_bits[resource_idx]; }, solution.trial_seen,
-        solution.trial_touched, false, alloc_m);
+        solution.trial_touched, false, alloc_m, is_pool);
     total_allocated += alloc_m;
 
     int total_jobs = problem_data.getNumJobs() - 1;
@@ -181,7 +198,8 @@ double evaluateIntraRoute(Solution& solution, const ProblemData& problem_data, i
     if (count_machines > 1) {
         int violations = countResourceViolations(num_resources, count_machines,
             [&](int r, int k) -> const std::vector<uint64_t>& {
-                return (k == m) ? solution.trial_bits[r] : solution.resource_route_bits[r][k];
+                if (k == m) return is_pool ? solution.resource_route_bits[r][0] : solution.trial_bits[r];
+                return solution.resource_route_bits[r][k];
             });
         clearTrialBuffer(solution.trial_bits, solution.trial_seen, solution.trial_touched);
         total += violations * resource_violation_penalty;
@@ -205,16 +223,19 @@ double evaluateInterRoute(Solution& solution, const ProblemData& problem_data, i
     }
 
     int alloc_m = 0, alloc_l = 0;
+    bool is_pool_m = (m >= count_machines);
+    bool is_pool_l = (l >= count_machines);
+
     total += computeRoute(
         solution.routes[m], problem_data,
         [&](int resource_idx) -> std::vector<uint64_t>& { return solution.trial_bits[resource_idx]; }, solution.trial_seen,
-        solution.trial_touched, false, alloc_m);
+        solution.trial_touched, false, alloc_m, is_pool_m);
     total_allocated += alloc_m;
 
     total += computeRoute(
         solution.routes[l], problem_data,
         [&](int resource_idx) -> std::vector<uint64_t>& { return solution.trial_bits2[resource_idx]; }, solution.trial_seen2,
-        solution.trial_touched2, false, alloc_l);
+        solution.trial_touched2, false, alloc_l, is_pool_l);
     total_allocated += alloc_l;
 
     int total_jobs = problem_data.getNumJobs() - 1;
@@ -224,8 +245,8 @@ double evaluateInterRoute(Solution& solution, const ProblemData& problem_data, i
     if (count_machines > 1) {
         int violations = countResourceViolations(num_resources, count_machines,
             [&](int r, int k) -> const std::vector<uint64_t>& {
-                if (k == m) return solution.trial_bits[r];
-                if (k == l) return solution.trial_bits2[r];
+                if (k == m) return is_pool_m ? solution.resource_route_bits[r][0] : solution.trial_bits[r];
+                if (k == l) return is_pool_l ? solution.resource_route_bits[r][0] : solution.trial_bits2[r];
                 return solution.resource_route_bits[r][k];
             });
         clearTrialBuffer(solution.trial_bits, solution.trial_seen, solution.trial_touched);
