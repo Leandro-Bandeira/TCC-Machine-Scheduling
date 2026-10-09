@@ -24,6 +24,7 @@
 // O movimento é simétrico: inverter ]i,j] dá o mesmo resultado que inverter ]j,i]
 // portanto j sempre começa em i+2 (j=i+1 seria inversão de segmento de tamanho 1, no-op).
 // Os dummies nas pontas (posições 0 e size-1) nunca são movidos.
+/*
 bool LocalSearch::bestImprovement2Opt(const ProblemData &problemData, Solution &solution){
     double bestDelta = solution.objective_function;
     int best_route = -1, best_i = -1, best_j = -1;
@@ -57,6 +58,8 @@ bool LocalSearch::bestImprovement2Opt(const ProblemData &problemData, Solution &
     }
     return false;
 }
+*/
+
 
 // ---------------------------------------------------------------------------
 // OrOpt-k (Reinserção de segmento)
@@ -138,6 +141,8 @@ bool LocalSearch::bestImprovementOrOpt(const ProblemData &problemData, Solution 
 // Os dummies nas pontas (posições 0 e size-1) nunca participam da troca.
 // O swap é feito in-place sobre a cópia da rota e desfeito após avaliar,
 // evitando realocar um vetor temporário a cada iteração.
+/**/
+
 bool LocalSearch::bestImprovementSwap(const ProblemData &problemData, Solution &solution){
     double bestDelta = solution.objective_function;
     
@@ -171,7 +176,6 @@ bool LocalSearch::bestImprovementSwap(const ProblemData &problemData, Solution &
     }
     return false;
 }
-
 
 // ---------------------------------------------------------------------------
 // Swap Inter-Rota
@@ -368,12 +372,12 @@ Solution LocalSearch::algorithm(const ProblemData &problemData, Solution solutio
         switch(NL[n]){
             case 1: improved = bestImprovementSwap(problemData, solution);              break;
             case 2: improved = bestImprovementOrOpt(problemData, solution, 1);          break;
-            case 3: improved = bestImprovement2Opt(problemData, solution);              break;
-            case 4: improved = bestImprovementOrOpt(problemData, solution, 2);          break;
-            case 5: improved = bestImprovementOrOpt(problemData, solution, 3);          break;
-            case 6: improved = bestImprovementSwapInterRoute(problemData, solution);    break;
-            case 7: improved = bestImprovementRealocate(problemData, solution);         break;
-            case 8: improved = bestImprovementRemoveJob(problemData, solution);         break;
+            //case 3: improved = bestImprovement2Opt(problemData, solution);              break;
+            case 3: improved = bestImprovementOrOpt(problemData, solution, 2);          break;
+            //case 5: improved = bestImprovementOrOpt(problemData, solution, 3);          break;
+            case 4: improved = bestImprovementSwapInterRoute(problemData, solution);    break;
+            case 5: improved = bestImprovementRealocate(problemData, solution);         break;
+            case 6: improved = bestImprovementRemoveJob(problemData, solution);         break;
         }
         if(improved){
             NL = {1, 2, 3, 4, 5, 6, 7, 8};
