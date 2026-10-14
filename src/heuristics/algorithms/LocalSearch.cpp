@@ -3,6 +3,7 @@
 #include <iomanip>
 #include <random>
 #include <iostream>
+#include <sstream>
 
 #include "../utils/objective.hpp"
 #include "../utils/utils.hpp"
@@ -82,6 +83,7 @@ bool LocalSearch::bestImprovement2Opt(const ProblemData &problemData, Solution &
 // Os dummies nas pontas nunca são movidos.
 bool LocalSearch::bestImprovementOrOpt(const ProblemData &problemData, Solution &solution, int k){
     double bestDelta = solution.objective_function;
+    double fo_anterior = solution.objective_function;
     int best_route = -1, best_i = -1, best_j = -1;
 
     for (int m = 0; m < problemData.getCountMachines(); m++) {
@@ -122,7 +124,14 @@ bool LocalSearch::bestImprovementOrOpt(const ProblemData &problemData, Solution 
                                            segment.begin(), segment.end());
         solution.invalidateRoute(best_route);
         solution.objective_function = evaluate(solution, problemData);
-        Debug::log("Movimento Oropt, BestDelta aceito: " + std::to_string(bestDelta) + "\nBestDelta de fato " + std::to_string(solution.objective_function));
+        double gain = fo_anterior - solution.objective_function;
+        std::ostringstream oss;
+        oss << std::fixed << std::setprecision(10);
+        oss << "Movimento: OrOpt-" << k
+            << ", Ganho: " << gain
+            << ", FO_Anterior: " << fo_anterior
+            << ", FO_Nova: " << solution.objective_function;
+        Debug::log(oss.str());
         return true;
     }
     return false;
@@ -145,7 +154,7 @@ bool LocalSearch::bestImprovementOrOpt(const ProblemData &problemData, Solution 
 
 bool LocalSearch::bestImprovementSwap(const ProblemData &problemData, Solution &solution){
     double bestDelta = solution.objective_function;
-    
+    double fo_anterior = solution.objective_function;
     int best_route = -1, best_i = -1, best_j = -1;
 
     for (int m = 0; m < problemData.getCountMachines(); m++) {
@@ -171,7 +180,13 @@ bool LocalSearch::bestImprovementSwap(const ProblemData &problemData, Solution &
         std::swap(solution.routes[best_route][best_i], solution.routes[best_route][best_j]);
         solution.invalidateRoute(best_route);
         solution.objective_function = evaluate(solution, problemData);
-        Debug::log("Movimento swap, BestDelta aceito: " + std::to_string(bestDelta) + "\nBestDelta de fato " + std::to_string(solution.objective_function));
+        double gain = fo_anterior - solution.objective_function;
+        std::ostringstream oss;
+        oss << std::fixed << std::setprecision(10);
+        oss << "Movimento: Swap, Ganho: " << gain
+            << ", FO_Anterior: " << fo_anterior
+            << ", FO_Nova: " << solution.objective_function;
+        Debug::log(oss.str());
         return true;
     }
     return false;
@@ -199,6 +214,7 @@ bool LocalSearch::bestImprovementSwap(const ProblemData &problemData, Solution &
 // Os dummies nas pontas nunca são movidos: i e j partem de 1.
 bool LocalSearch::bestImprovementSwapInterRoute(const ProblemData &problemData, Solution &solution){
     double bestDelta = solution.objective_function;
+    double fo_anterior = solution.objective_function;
     int best_route_m = -1, best_route_l = -1, best_i = -1, best_j = -1;
 
     for(int m = 0; m < (int)solution.routes.size() - 1; m++){
@@ -228,7 +244,13 @@ bool LocalSearch::bestImprovementSwapInterRoute(const ProblemData &problemData, 
         solution.invalidateRoute(best_route_m);
         solution.invalidateRoute(best_route_l);
         solution.objective_function = evaluate(solution, problemData);
-        Debug::log("Movimento swapInter, BestDelta aceito: " + std::to_string(bestDelta) + "\nBestDelta de fato " + std::to_string(solution.objective_function));
+        double gain = fo_anterior - solution.objective_function;
+        std::ostringstream oss;
+        oss << std::fixed << std::setprecision(10);
+        oss << "Movimento: SwapInter, Ganho: " << gain
+            << ", FO_Anterior: " << fo_anterior
+            << ", FO_Nova: " << solution.objective_function;
+        Debug::log(oss.str());
         return true;
     }
     return false;
@@ -256,6 +278,7 @@ bool LocalSearch::bestImprovementSwapInterRoute(const ProblemData &problemData, 
 // movimento é descartado naturalmente.
 bool LocalSearch::bestImprovementRealocate(const ProblemData &problemData, Solution &solution, int k){
     double bestDelta = solution.objective_function;
+    double fo_anterior = solution.objective_function;
     int best_route_m = -1, best_route_l = -1, best_i = -1, best_j = -1;
     
     /*
@@ -313,7 +336,14 @@ bool LocalSearch::bestImprovementRealocate(const ProblemData &problemData, Solut
         solution.invalidateRoute(best_route_m);
         solution.invalidateRoute(best_route_l);
         solution.objective_function = evaluate(solution, problemData);
-        Debug::log("Movimento Realocate, BestDelta aceito: " + std::to_string(bestDelta) + "\nBestDelta de fato " + std::to_string(solution.objective_function));
+        double gain = fo_anterior - solution.objective_function;
+        std::ostringstream oss;
+        oss << std::fixed << std::setprecision(10);
+        oss << "Movimento: Realocate-" << k
+            << ", Ganho: " << gain
+            << ", FO_Anterior: " << fo_anterior
+            << ", FO_Nova: " << solution.objective_function;
+        Debug::log(oss.str());
         return true;
     }
     return false;
