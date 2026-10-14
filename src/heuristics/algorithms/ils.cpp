@@ -15,70 +15,59 @@
 #include <chrono>
 
 
-// Fase de construção GRASP (Greedy Randomized Adaptive Search Procedure).
+// Fase de construção GRASP (Greedy Randomized Adaptive Search Procedure) - Estratégia ERD-GRASP Global.
 //
-// Estratégia:
-//   - Jobs são agrupados por release_date para respeitar a data de liberação.
-//   - Para cada job: sorteia uma rota aleatória m entre as count_machines rotas disponíveis.
-//   - Ordena candidatos por setup crescente em relação ao último job inserido na rota m.
-//   - Uma quantidade aleatória `alpha` dos melhores candidatos forma a RCL
-//     (Restricted Candidate List). Um elemento é escolhido aleatoriamente da RCL.
-//   - O job escolhido é inserido na rota m e removido de CL em O(1) via swap+pop_back.
-//
-// Isso introduz diversificação: ao variar o tamanho da RCL entre 1 e |CL|,
-// a construção oscila entre totalmente gulosa (alpha=1) e aleatória (alpha=|CL|).
+// Estratégia (A):
+//   - Todos os jobs reais são reunidos na lista de candidatos CL e ordenados por release_date_slot crescente
+//     (desempate por due_date_slot).
+//   - A cada passo, define-se a RCL (Restricted Candidate List) com base nos k candidatos com menores release dates.
+//   - Um elemento é sorteado aleatoriamente da RCL.
+//   - O job escolhido é alocado na máquina paralela com menor tempo de término acumulado (Earliest Available Machine).
+//   - O job é inserido no final da rota (antes do dummy final) e removido de CL.
 Solution ILS::construction(){
     Solution solution;
     const std::vector<Job>& jobs = this->problem_data.getJobs();
-    const std::vector<std::vector<int>>& setup_matrix = this->problem_data.getSetupMatrix();
     const int count_machines = this->problem_data.getCountMachines();
 
     // Inicializa count_machines rotas reais + 1 rota para o pool virtual de não-alocados
     solution.routes.resize(count_machines + 1, {Job(0,0,0,0,0,0), Job(0, 0, 0, 0, 0, 0)});
     solution.initEvalBuffers(this->problem_data.getNumResources(), this->problem_data.getNumWords(), count_machines);
-    // Agrupa jobs por release_date — map ordena automaticamente por chave crescente
-    std::map<int, std::vector<Job>> jobs_group_by_release;
+
+    // Lista de candidatos global (todos os jobs reais, excluindo o dummy)
+    std::vector<Job> CL;
+    CL.reserve(jobs.size());
     for(const auto& job : jobs) {
         if(job.idx == 0) continue; // pula o dummy
-        jobs_group_by_release[job.release_date_slot].push_back(job);
+        CL.push_back(job);
     }
 
-    std::vector<int> r(count_machines, 0); // idx do último job inserido (0=dummy, sem setup inicial), temos um valor de r para cada rota
-    std::vector<int>insercaoIndice(count_machines, 1); // posição de inserção na sequência (antes do dummy final)
+    // Ordena CL por release_date_slot crescente, desempate por due_date_slot
+    std::sort(CL.begin(), CL.end(), [](const Job& a, const Job& b){
+        if(a.release_date_slot != b.release_date_slot)
+            return a.release_date_slot < b.release_date_slot;
+        return a.due_date_slot < b.due_date_slot;
+    });
 
     std::mt19937 gen(std::random_device{}());
+    std::uniform_real_distribution<double> dist_alpha(0.0, 1.0);
 
-    for(auto& [release_date, jobs] : jobs_group_by_release){
-        std::vector<Job> CL(jobs); // lista de candidatos do grupo
+    while(!CL.empty()){
+        // Parâmetro alpha: sorteia valor aleatório em [0, 1]
+        double alpha = dist_alpha(gen);
+        int k = std::max(1, (int)std::ceil(alpha * CL.size()));
 
-        while(!CL.empty()){
-            // Sorteia rota aleatoria
-            int m = std::rand() % count_machines;
+        // Sorteia aleatoriamente um job entre os k melhores (menores release dates)
+        int posSelecionado = std::rand() % k;
+        Job selected_job = CL[posSelecionado];
 
-            // Ordena candidatos pelo setup em relação ao último job inserido, dentro daquela rota
-            std::sort(CL.begin(), CL.end(), [&](const Job& a, const Job& b){
-                return setup_matrix[r[m]][a.idx] < setup_matrix[r[m]][b.idx];
-            });
+        // Sorteia aleatoriamente uma máquina paralela
+        int m = std::rand() % count_machines;
 
-            // alpha: tamanho aleatório da RCL ∈ [1, |CL|]
-            std::uniform_int_distribution<> alpha(1, (int)CL.size());
-            int quantiaMelhoresCandidatos = alpha(gen);
+        // Insere o job na rota escolhida imediatamente antes do dummy final
+        solution.routes[m].insert(solution.routes[m].end() - 1, selected_job);
 
-            std::vector<Job> RCL(CL.begin(), CL.begin() + quantiaMelhoresCandidatos);
-
-            // Seleciona aleatoriamente um job da RCL e insere na sequência
-            int posSelecionado = std::rand() % RCL.size();
-
-            solution.routes[m].insert(
-                solution.routes[m].begin() + insercaoIndice[m], RCL[posSelecionado]
-            );
-            r[m] = RCL[posSelecionado].idx;
-            insercaoIndice[m]++;
-
-            // Remove o job selecionado de CL em O(1): troca com o último e remove o último
-            std::swap(CL[posSelecionado], CL.back());
-            CL.pop_back();
-        }
+        // Remove o job selecionado de CL
+        CL.erase(CL.begin() + posSelecionado);
     }
 
     solution.objective_function = evaluate(solution, this->problem_data);
