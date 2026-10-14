@@ -15,8 +15,9 @@ ProblemData ReadInstance::readData(const std::string& path, const int id_machine
     int count_machines = parse_count_machines(data, id_machine);
     int big_setup = data["big_setup"].get<int>(); // jobs que compartilham o mesmo recurso e são feitos em máquinas diferentes, devem respeitar esse setup
     std::vector<int> next_start_slots = parse_next_start_slots(data, id_machine);
+    std::string machine_name = parse_machine_name(data, id_machine);
 
-    return ProblemData(jobs, setup_matrix, H, first_slot, start_slots, count_machines, big_setup, next_start_slots);
+    return ProblemData(jobs, setup_matrix, H, first_slot, start_slots, count_machines, big_setup, next_start_slots, id_machine, machine_name);
 }
 
 // Função responsável por retornar o número de máquinas em paralela
@@ -28,6 +29,18 @@ int ReadInstance::parse_count_machines(const json& data, const int id_machine){
         break;
     }
     return count_machine;
+}
+
+// Função responsável por retornar o nome da máquina
+std::string ReadInstance::parse_machine_name(const json& data, const int id_machine){
+    for(const auto& machine_data : data["machines"]){
+        if(machine_data["machine_id"].get<int>() != id_machine) continue;
+        if(machine_data.contains("machine_name")){
+            return machine_data["machine_name"].get<std::string>();
+        }
+        break;
+    }
+    return "";
 }
 std::vector<Job> ReadInstance::parse_jobs(const json& data, const int id_machine) {
     std::vector<Job> jobs;

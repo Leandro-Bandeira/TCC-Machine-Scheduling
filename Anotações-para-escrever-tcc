@@ -1,0 +1,13 @@
+Aparentemente ele encontra a solução otima rapida demais, não precisa de IterIls e Ils iterações tão grandes
+Usamos com base o m_maxIterIls: 10, usando como base o artigo do unifed
+
+Pois o custo da busca local é bastante elevado
+   Adaptativo (Para instâncias de tamanhos variados) |                      |
+
+    ⎧ 2n,     se n < 50
+    ⎨ n,      se 50 ≤ n < 150
+    ⎩ ⌊n/2⌋,  se n ≥ 150
+
+
+
+Foi usado a maquina virtual para dizer que não vamos produzir o job

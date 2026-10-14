@@ -56,7 +56,7 @@
             ],
             "machine_id": 2,
             "objective_function": 0.280022766078543,
-            "solve_time_seconds": 0.003569113
+            "solve_time_seconds": 0.001122316
         },
         {
             "count_jobs_not_allocated": 0,
@@ -104,47 +104,47 @@
                 {
                     "due_date_slot": 864,
                     "end": 462,
-                    "job_id": 197,
+                    "job_id": 196,
                     "processing_slots": 12,
                     "release_date_slot": 288,
-                    "resource_id": 1,
+                    "resource_id": 0,
                     "start": 450,
                     "sub_machine": 0
                 },
                 {
                     "due_date_slot": 864,
                     "end": 476,
-                    "job_id": 196,
+                    "job_id": 197,
                     "processing_slots": 12,
                     "release_date_slot": 288,
-                    "resource_id": 0,
+                    "resource_id": 1,
                     "start": 464,
                     "sub_machine": 0
                 },
                 {
                     "due_date_slot": 1728,
                     "end": 750,
-                    "job_id": 206,
+                    "job_id": 207,
                     "processing_slots": 12,
                     "release_date_slot": 576,
-                    "resource_id": 0,
+                    "resource_id": 1,
                     "start": 738,
                     "sub_machine": 0
                 },
                 {
                     "due_date_slot": 1728,
                     "end": 764,
-                    "job_id": 207,
+                    "job_id": 206,
                     "processing_slots": 12,
                     "release_date_slot": 576,
-                    "resource_id": 1,
+                    "resource_id": 0,
                     "start": 752,
                     "sub_machine": 0
                 }
             ],
             "machine_id": 5,
             "objective_function": 0.35618264637262526,
-            "solve_time_seconds": 0.007582814
+            "solve_time_seconds": 0.001645157
         }
     ]
 }

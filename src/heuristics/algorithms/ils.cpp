@@ -248,6 +248,7 @@ Solution ILS::perturbation(Solution solution){
  * Critério de aceitação: best-improvement puro (sem aceitar piora).
  */
 void ILS::algorithm(const std::string& input_path, int machine_id){
+    this->problem_data.logInstanceData(input_path, this->m_maxIter, this->m_maxIterILS);
     auto t0 = std::chrono::steady_clock::now();
 
 

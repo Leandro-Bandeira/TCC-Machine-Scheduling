@@ -27,8 +27,7 @@ class LocalSearch{
     public:
         static bool bestImprovementSwap(const ProblemData& problemData, Solution& solution);
         static bool bestImprovementOrOpt(const ProblemData& problemData, Solution& solution, int k);
-        static bool bestImprovement2Opt(const ProblemData& problemData, Solution& solution);
         static Solution algorithm(const ProblemData& problemData, Solution solution);
         static bool bestImprovementSwapInterRoute(const ProblemData& problemData, Solution& solution);
-        static bool bestImprovementRealocate(const ProblemData& problemData, Solution& solution);
+        static bool bestImprovementRealocate(const ProblemData& problemData, Solution& solution, int k);
 };

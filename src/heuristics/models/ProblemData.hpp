@@ -2,7 +2,11 @@
 
 #include <vector>
 #include <unordered_map>
+#include <string>
+#include <iostream>
+#include <sstream>
 #include "job.hpp"
+#include "../utils/Debug.hpp"
 
 // Agrega todos os dados estáticos da instância para uma máquina específica.
 // Passado por referência constante para ILS e LocalSearch — nunca modificado.
@@ -16,8 +20,8 @@ class ProblemData{
         // start_slots: lista ordenada de todos os slots em que a máquina pode iniciar
         //   um job (slots de abertura de turno). Jobs só podem começar nesses instantes.
         // count_machines: Número de máquinas em paralela do problema
-        ProblemData(std::vector<Job> jobs, std::vector<std::vector<int>> setup_matrix, int H, int first_slot, std::vector<int> start_slots, int count_machine, int big_setup, std::vector<int> next_start_slots)
-            : jobs(jobs), setup_matrix(setup_matrix), H(H), first_slot(first_slot), start_slots(start_slots), count_machines(count_machine), big_setup(big_setup), next_start_slots(next_start_slots) {
+        ProblemData(std::vector<Job> jobs, std::vector<std::vector<int>> setup_matrix, int H, int first_slot, std::vector<int> start_slots, int count_machine, int big_setup, std::vector<int> next_start_slots, int machine_id = -1, std::string machine_name = "")
+            : jobs(jobs), setup_matrix(setup_matrix), H(H), first_slot(first_slot), start_slots(start_slots), count_machines(count_machine), big_setup(big_setup), next_start_slots(next_start_slots), machine_id(machine_id), machine_name(machine_name) {
             buildResourceIdx();
             // Constantes derivadas da instância — calculadas 1x aqui, não a cada
             // chamada de evaluate()/evaluateIntraRoute/evaluateInterRoute.
@@ -41,6 +45,46 @@ class ProblemData{
         int getFirstSlot() const { return first_slot; }
         int getNumJobs() const { return jobs.size(); }
         const std::vector<int>& getNextStartSlots() const { return next_start_slots; }
+        int getMachineId() const { return machine_id; }
+        const std::string& getMachineName() const { return machine_name; }
+
+        std::string getInstanceDataString(const std::string& input_path = "", int maxIter = -1, int maxIterILS = -1) const {
+            int N = getNumJobs() - 1;
+            int M = count_machines;
+
+            std::ostringstream oss;
+            oss << "====================================================\n";
+            oss << "               DADOS DA INSTÂNCIA                   \n";
+            oss << "====================================================\n";
+            if (!input_path.empty()) {
+                oss << "Arquivo:              " << input_path << "\n";
+            }
+            if (!machine_name.empty()) {
+                oss << "Máquina:              " << machine_name << " (ID: " << machine_id << ")\n";
+            } else if (machine_id >= 0) {
+                oss << "Máquina ID:           " << machine_id << "\n";
+            }
+            oss << "Tamanho de N:         " << N << " jobs (" << getNumJobs() << " com dummy)\n";
+            oss << "Tamanho de M:         " << M << " máquina(s) paralela(s)\n";
+            if (maxIter >= 0) {
+                oss << "m_maxIter:            " << maxIter << "\n";
+            }
+            if (maxIterILS >= 0) {
+                oss << "m_maxIterIls:         " << maxIterILS << "\n";
+            }
+            oss << "Horizonte (H):        " << H << " slots\n";
+            oss << "Primeiro slot:        " << first_slot << "\n";
+            oss << "Slots de início:      " << start_slots.size() << " disponíveis\n";
+            oss << "Big Setup:            " << big_setup << " slots\n";
+            oss << "Recursos distintos:   " << num_resources << "\n";
+            oss << "Matriz de setup:      " << setup_matrix.size() << " x " << setup_matrix.size() << "\n";
+            oss << "====================================================";
+            return oss.str();
+        }
+
+        void logInstanceData(const std::string& input_path = "", int maxIter = -1, int maxIterILS = -1) const {
+            Debug::log(getInstanceDataString(input_path, maxIter, maxIterILS));
+        }
 
         // Quantidade de resource_id distintos entre os jobs (R) — dimensiona o
         // bucket resource_route_bits[R][count_machines] usado na checagem de
@@ -66,6 +110,8 @@ class ProblemData{
         int count_machines;
         int big_setup;
         std::vector<int> next_start_slots;
+        int machine_id = -1;
+        std::string machine_name = "";
         int num_resources = 0;
         double weight_not_allocated = 0.0;
         double epsilon = 0.0;

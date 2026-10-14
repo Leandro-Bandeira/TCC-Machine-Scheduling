@@ -11,27 +11,18 @@
 // Ponto de entrada da heurística ILS.
 // Uso: ./heuristic <path_input.json> <machine_id>
 //
-// Lê a instância, imprime a matriz de setup, executa o ILS (construção GRASP + VNS)
-// e reporta o tempo total da fase algoritmica em segundos.
+// Lê a instância, imprime os dados da instância (N, M, etc.),
+// executa o ILS (construção GRASP + VNS) e reporta o tempo total e a melhor solução.
 int main(int argc, char** argv){
-    int machine_to_use = std::stoi(argv[2]);
-    ProblemData data = ReadInstance::readData(argv[1], machine_to_use);
-
-    const std::vector<Job>& jobs = data.getJobs();
-    const std::vector<std::vector<int>>& matrix = data.getSetupMatrix();
-    int N = jobs.size();
-    /*
-    std::cout << "\nSetup matrix (" << N << "x" << N << "):\n";
-
-    for (int i = 0; i < N; i++) {
-        for (int j = 0; j < N; j++) {
-            std::cout << matrix[i][j] << " ";
-        }
-        std::cout << "\n";
+    if (argc < 3) {
+        std::cerr << "Uso: " << argv[0] << " <path_input.json> <machine_id>\n";
+        return 1;
     }
-    */
 
+    int machine_to_use = std::stoi(argv[2]);
     std::string input_path = argv[1];
+    ProblemData data = ReadInstance::readData(input_path, machine_to_use);
+
     ILS ils(data);
     ils.algorithm(input_path, machine_to_use);
     return 0;

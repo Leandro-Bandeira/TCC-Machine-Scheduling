@@ -254,23 +254,36 @@ bool LocalSearch::bestImprovementSwapInterRoute(const ProblemData &problemData, 
 // A FO é avaliada sobre a solução completa (ambas as rotas modificadas + demais inalteradas).
 // O big_setup cross-rota é verificado dentro de evaluate — se violado, FO sobe e o
 // movimento é descartado naturalmente.
-bool LocalSearch::bestImprovementRealocate(const ProblemData &problemData, Solution &solution){
+bool LocalSearch::bestImprovementRealocate(const ProblemData &problemData, Solution &solution, int k){
     double bestDelta = solution.objective_function;
     int best_route_m = -1, best_route_l = -1, best_i = -1, best_j = -1;
+    
+    /*
+    Realizamos as trocas entre a rota m e a rota l
+    para cada elemento de tamanho que pertence ao conjunto {1, 2}, tiramos de m e inserimos em l
+    */
     for(int m = 0; m < (int)solution.routes.size(); m++){
+        
         std::vector<Job> original_m = solution.routes[m]; // conteúdo original, pra montar candidatos e restaurar
+        if((int)original_m.size() < 2 + k) continue;
+
         for(int l = 0; l < (int)solution.routes.size(); l++){
             if(m==l) continue;
 
-            std::vector<Job> original_l = solution.routes[l];
-            for(int i = 1; i < (int)original_m.size() - 1; i++){
+            std::vector<Job> original_l = solution.routes[l]; 
+            for(int i = 1; i <= (int)original_m.size() - 1 -k; i++){
+                
                 std::vector<Job> temp_m = original_m;
-                Job job = temp_m[i];
-                temp_m.erase(temp_m.begin() + i);
+                std::vector<Job> blockRealocate(temp_m.begin() + i, temp_m.begin() + i + k); 
+             
+                /* Retiramos da posição i + (k-1), se k for i, removemos da posição, se k for 2, removemos da posição i e i + 1*/
+                temp_m.erase(temp_m.begin() + i, temp_m.begin() + i + k);
+                
+                /* Perceba que aqui, podemos inserir na posição antes do job dummy, n - 1*/
                 for(int j = 1; j <= (int)original_l.size() - 1; j++){
 
                     std::vector<Job> temp_l = original_l;
-                    temp_l.insert(temp_l.begin() + j, job);
+                    temp_l.insert(temp_l.begin() + j, blockRealocate.begin(), blockRealocate.end());
 
                     solution.routes[m].swap(temp_m); // troca ponteiros O(1), sem copiar a solução inteira
                     solution.routes[l].swap(temp_l);
@@ -293,9 +306,10 @@ bool LocalSearch::bestImprovementRealocate(const ProblemData &problemData, Solut
     }
 
     if (best_route_m != -1){
-        Job job = solution.routes[best_route_m][best_i];
-        solution.routes[best_route_m].erase(solution.routes[best_route_m].begin() + best_i);
-        solution.routes[best_route_l].insert(solution.routes[best_route_l].begin() + best_j, job);
+        auto it_start = solution.routes[best_route_m].begin() + best_i;
+        std::vector<Job> block(it_start, it_start + k);
+        solution.routes[best_route_m].erase(it_start, it_start + k);
+        solution.routes[best_route_l].insert(solution.routes[best_route_l].begin() + best_j, block.begin(), block.end());
         solution.invalidateRoute(best_route_m);
         solution.invalidateRoute(best_route_l);
         solution.objective_function = evaluate(solution, problemData);
@@ -324,7 +338,7 @@ bool LocalSearch::bestImprovementRealocate(const ProblemData &problemData, Solut
 // Termina quando NL fica vazia: ótimo local simultâneo em todas as vizinhanças.
 Solution LocalSearch::algorithm(const ProblemData &problemData, Solution solution){
     solution.objective_function = evaluate(solution, problemData);
-    std::vector<int> NL = {1, 2, 3, 4, 5};
+    std::vector<int> NL = {1, 2, 3, 4, 5, 6};
     bool improved = false;
 
     while(!NL.empty()){
@@ -334,10 +348,11 @@ Solution LocalSearch::algorithm(const ProblemData &problemData, Solution solutio
             case 2: improved = bestImprovementOrOpt(problemData, solution, 1);          break;
             case 3: improved = bestImprovementOrOpt(problemData, solution, 2);          break;
             case 4: improved = bestImprovementSwapInterRoute(problemData, solution);    break;
-            case 5: improved = bestImprovementRealocate(problemData, solution);         break;
+            case 5: improved = bestImprovementRealocate(problemData, solution, 1);         break;
+            case 6: improved = bestImprovementRealocate(problemData, solution, 2);         break;
         }
         if(improved){
-            NL = {1, 2, 3, 4, 5};
+            NL = {1, 2, 3, 4, 5, 6};
         }else{
             std::swap(NL[n], NL.back());
             NL.pop_back();
