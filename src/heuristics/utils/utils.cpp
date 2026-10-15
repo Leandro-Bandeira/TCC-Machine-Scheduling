@@ -9,10 +9,10 @@ void printRoutes(const Solution& solution){
     std::cout << "\n[solução] " << count_machines << " rota(s):\n";
     for(int m = 0; m < count_machines; m++){
         const auto& route = solution.routes[m];
-        int real_jobs = (int)route.size() - 2;
+        int real_jobs = (int)route.size();
         std::cout << "  rota[" << m << "] (" << real_jobs << " jobs): ";
         for(const auto& job : route){
-            if(job.idx == 0) { std::cout << "[D]"; continue; }
+            if(job.idx == 0) continue;
             std::cout << "[id=" << job.id
                       << " res=" << job.resource_id
                       << " rel=" << job.release_date_slot

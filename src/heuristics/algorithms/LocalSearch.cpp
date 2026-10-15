@@ -89,11 +89,12 @@ bool LocalSearch::bestImprovementOrOpt(const ProblemData &problemData, Solution 
     for (int m = 0; m < problemData.getCountMachines(); m++) {
         std::vector<Job> original_route = solution.routes[m]; // conteúdo original da rota, pra montar candidatos e restaurar
         int n = (int)original_route.size();
+        if (n < k + 1) continue;
 
-        for (int i = 1; i <= n - 1 - k; i++) {
+        for (int i = 0; i <= n - k; i++) {
             std::vector<Job> segment(original_route.begin() + i, original_route.begin() + i + k);
 
-            for (int j = 1; j <= n - k - 1; j++) {
+            for (int j = 0; j <= n - k; j++) {
                 if (j == i) continue;
 
                 std::vector<Job> candidate_route = original_route;
@@ -159,9 +160,10 @@ bool LocalSearch::bestImprovementSwap(const ProblemData &problemData, Solution &
 
     for (int m = 0; m < problemData.getCountMachines(); m++) {
         std::vector<Job>& route = solution.routes[m];
+        if (route.size() < 2) continue;
 
-        for (size_t i = 1; i < route.size() - 1; i++) {
-            for (size_t j = i + 1; j < route.size() - 1; j++) {
+        for (size_t i = 0; i < route.size(); i++) {
+            for (size_t j = i + 1; j < route.size(); j++) {
                 std::swap(route[i], route[j]);
 
                 double delta = evaluateIntraRoute(solution, problemData, m);
@@ -219,10 +221,12 @@ bool LocalSearch::bestImprovementSwapInterRoute(const ProblemData &problemData, 
 
     for(int m = 0; m < (int)solution.routes.size() - 1; m++){
         std::vector<Job>& route_m = solution.routes[m]; // referência: muta solution direto
+        if (route_m.empty()) continue;
         for(int l = m + 1; l < (int)solution.routes.size(); l++){
             std::vector<Job>& route_l = solution.routes[l];
-            for(int i = 1; i < (int)route_m.size() - 1; i++){
-                for(int j = 1; j < (int)route_l.size() - 1; j++){
+            if (route_l.empty()) continue;
+            for(int i = 0; i < (int)route_m.size(); i++){
+                for(int j = 0; j < (int)route_l.size(); j++){
                     std::swap(route_m[i], route_l[j]); // Troca entre rotas
 
                     double delta = evaluateInterRoute(solution, problemData, m, l);
@@ -288,22 +292,22 @@ bool LocalSearch::bestImprovementRealocate(const ProblemData &problemData, Solut
     for(int m = 0; m < (int)solution.routes.size(); m++){
         
         std::vector<Job> original_m = solution.routes[m]; // conteúdo original, pra montar candidatos e restaurar
-        if((int)original_m.size() < 2 + k) continue;
+        if((int)original_m.size() < k) continue;
 
         for(int l = 0; l < (int)solution.routes.size(); l++){
             if(m==l) continue;
 
             std::vector<Job> original_l = solution.routes[l]; 
-            for(int i = 1; i <= (int)original_m.size() - 1 -k; i++){
+            for(int i = 0; i <= (int)original_m.size() - k; i++){
                 
                 std::vector<Job> temp_m = original_m;
                 std::vector<Job> blockRealocate(temp_m.begin() + i, temp_m.begin() + i + k); 
              
-                /* Retiramos da posição i + (k-1), se k for i, removemos da posição, se k for 2, removemos da posição i e i + 1*/
+                /* Retiramos da posição i o bloco de tamanho k */
                 temp_m.erase(temp_m.begin() + i, temp_m.begin() + i + k);
                 
-                /* Perceba que aqui, podemos inserir na posição antes do job dummy, n - 1*/
-                for(int j = 1; j <= (int)original_l.size() - 1; j++){
+                /* Inserção na rota l em posições de 0 até original_l.size() inclusive */
+                for(int j = 0; j <= (int)original_l.size(); j++){
 
                     std::vector<Job> temp_l = original_l;
                     temp_l.insert(temp_l.begin() + j, blockRealocate.begin(), blockRealocate.end());
