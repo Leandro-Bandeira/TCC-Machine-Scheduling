@@ -2,6 +2,8 @@
 
 #include <cmath>
 #include <cstdint>
+#include <climits>
+#include <utility>
 #include <vector>
 #include "job.hpp"
 
@@ -13,13 +15,38 @@ struct RouteCache {
     double cost = 0.0;
     int allocated_jobs = 0;
     bool is_dirty = true;
+};
 
-    // resource_idx distintos (sem repetição) que essa rota tocou na última vez
-    // que foi recalculada com sucesso. Usado pra limpar só os buckets certos de
-    // solution.resource_route_bits antes de recalcular — sem isso, não daria pra
-    // saber quais buckets limpar quando um job SAI da rota (ele não aparece mais
-    // no loop de jobs atual, mas o bit antigo dele ainda tá marcado).
-    std::vector<int> touched_resources;
+// Intervalo de ocupação de um recurso por um job alocado: [s, e), onde
+// e = min(H + 1, end + big_setup). k é a rota (máquina) real dona do job.
+struct ResourceInterval {
+    int s;
+    int e;
+    int k;
+};
+
+// Buffer de intervalos de TESTE de uma rota candidata, agrupados por recurso.
+// Cada by_res[r] sai ordenado por início, pois a rota é percorrida em ordem e o
+// start dos jobs só cresce ao longo dela. touched guarda os recursos com pelo
+// menos um intervalo, para limpar só o que foi usado.
+struct TrialIntervals {
+    std::vector<std::vector<std::pair<int, int>>> by_res; // (s, e) por recurso
+    std::vector<int> touched;
+
+    void init(int num_resources) {
+        by_res.assign(num_resources, {});
+        touched.clear();
+    }
+
+    void add(int resource_idx, int s, int e) {
+        if (by_res[resource_idx].empty()) touched.push_back(resource_idx);
+        by_res[resource_idx].emplace_back(s, e);
+    }
+
+    void clear() {
+        for (int r : touched) by_res[r].clear();
+        touched.clear();
+    }
 };
 
 // Representa uma solução completa: count_machines rotas de jobs e o valor da função objetivo.
@@ -35,38 +62,36 @@ struct Solution{
     std::vector<RouteCache> route_caches;
     double objective_function = MAXFLOAT;
 
-    // Bucket [resource_idx][route] -> bitset agregado (OR de todos os jobs desse
-    // resource_id naquela rota, ocupação + zona de exclusão de big_setup). Vive
-    // aqui (não em ProblemData) porque muda com a solução — mas resource_idx e
-    // rota são dimensões fixas da instância, só o CONTEÚDO dos bits muda.
-    // Atualizado durante a Fase 1 de evaluate() (route/resource já disponíveis
-    // de graça no loop); checado na Fase 2 sem precisar escanear job nenhum.
-    
-    /*Cada recurso da minha solução, se conecta a uma rota (número de máquinas) e por fim temos o seu vetor de tamanho W*/
-    std::vector<std::vector<std::vector<uint64_t>>> resource_route_bits;
+    // Conflito de recurso compartilhado (big_setup cross-rota) via intervalos.
+    // Ver heuristics_information/resource_conflict_intervals.md.
+    //
+    // resource_intervals[r]: intervalos de todos os jobs alocados do recurso r em
+    // máquinas reais, ordenados por (s, k, e). Só é refeito em evaluate(), quando
+    // alguma rota está suja (commit de um movimento aceito, perturbação, construção).
+    std::vector<std::vector<ResourceInterval>> resource_intervals;
 
-    // Scratch de evaluateIntraRoute (objective.cpp): bits temporários da rota
-    // sendo simulada, indexados por resource_idx — reutilizados entre chamadas
-    // (realinhados só se o tamanho não bater com a instância), sempre limpos de
-    // volta a zero no final de cada chamada. trial_seen/trial_touched evitam
-    // duplicar entradas e permitem limpar só o que foi tocado, não tudo.
-    
-    /*
-     * Como nas avaliações não podemos tocar em resource_route_bits, apenas no movimento de fato aplicado, precisamos desse vetor
-     * TrialBits é um vetor bidimensional que representa para cada recurso seu vetor de tamanho W
-     * Ao fim de cada chamada esse vetor é limpado (volta ao zero), trial_seen e trial_touched só limpa o que foi tocado
-     */
-    std::vector<std::vector<uint64_t>> trial_bits;
-    std::vector<bool> trial_seen;
-    std::vector<int> trial_touched;
+    // total_violations: nº de pares de máquinas (k1, k2) que violam a restrição de
+    // recurso, somado sobre os recursos (cada par conta uma vez por recurso).
+    // pair_viol[k1 * M + k2]: em quantos recursos o par (k1, k2) viola (simétrica).
+    // row_viol[k]: soma da linha k de pair_viol, ou seja, violações que envolvem k.
+    int total_violations = 0;
+    std::vector<int> pair_viol;
+    std::vector<int> row_viol;
 
-    // Segundo buffer, mesmo padrão — usado por evaluateInterRoute pra simular
-    // a SEGUNDA rota (l) de movimentos que mexem em duas rotas ao mesmo tempo
-    // (SwapInterRoute, Realocate). Precisa de dois buffers simultâneos porque
-    // m e l são comparadas uma contra a outra, não só contra o resto.
-    std::vector<std::vector<uint64_t>> trial_bits2;
-    std::vector<bool> trial_seen2;
-    std::vector<int> trial_touched2;
+    // Buffers de teste reutilizados nas avaliações de candidatos. trial1 simula a
+    // rota m e trial2 a rota l (evaluateInterRoute), pois m e l também são
+    // comparadas entre si e não só contra o resto.
+    TrialIntervals trial1;
+    TrialIntervals trial2;
+
+    // Scratch do sweep: last_end[k] = maior fim já visto da máquina k no recurso
+    // corrente; mark_m/mark_l/pair_mark com carimbo evitam contar a mesma máquina
+    // (ou o mesmo par) duas vezes no mesmo recurso, sem precisar zerar os vetores.
+    std::vector<int> last_end;
+    std::vector<uint64_t> mark_m;
+    std::vector<uint64_t> mark_l;
+    std::vector<uint64_t> pair_mark;
+    uint64_t stamp = 0;
 
     // Marca a rota route_idx como suja: próxima chamada de evaluate() recalcula
     // essa rota do zero em vez de reaproveitar o cache. Precisa ser chamado em
@@ -76,27 +101,29 @@ struct Solution{
             route_caches[route_idx].is_dirty = true;
     }
 
-    // Dimensiona/zera route_caches, resource_route_*bits e os buffers de trial
-    // 1x, na criação da solução (chamar logo após construction() montar
-    // solution.routes). num_resources/num_words/count_machines são constantes
+    // Dimensiona/zera route_caches e as estruturas de intervalos de recurso 1x,
+    // na criação da solução (chamar logo após construction() montar
+    // solution.routes). num_resources/count_machines são constantes
     // da instância — não precisam ser checados a cada chamada de evaluate()/
     // evaluateIntraRoute/evaluateInterRoute. Cópias subsequentes (perturbation,
     // best-tracking em ILS/LocalSearch) herdam esse dimensionamento via cópia
     // de vector, então isso roda uma única vez por instância.
-    
-    
-    void initEvalBuffers(int num_resources, int num_words, int count_machines) {
+    void initEvalBuffers(int num_resources, int count_machines) {
         /* Para cada vetor de jobs (Rota), inicializa uma RouteCache */
         route_caches.assign(routes.size(), RouteCache{});
 
         if (count_machines > 1) {
-            resource_route_bits.assign(
-                num_resources,
-                std::vector<std::vector<uint64_t>>(count_machines, std::vector<uint64_t>(num_words, 0ULL)));
-            trial_bits.assign(num_resources, std::vector<uint64_t>(num_words, 0ULL));
-            trial_seen.assign(num_resources, false);
-            trial_bits2.assign(num_resources, std::vector<uint64_t>(num_words, 0ULL));
-            trial_seen2.assign(num_resources, false);
+            resource_intervals.assign(num_resources, {});
+            total_violations = 0;
+            pair_viol.assign((size_t)count_machines * count_machines, 0);
+            row_viol.assign(count_machines, 0);
+            trial1.init(num_resources);
+            trial2.init(num_resources);
+            last_end.assign(count_machines, INT_MIN);
+            mark_m.assign(count_machines, 0);
+            mark_l.assign(count_machines, 0);
+            pair_mark.assign((size_t)count_machines * count_machines, 0);
+            stamp = 0;
         }
     }
 };

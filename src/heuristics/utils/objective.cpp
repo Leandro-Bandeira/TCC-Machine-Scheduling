@@ -2,25 +2,25 @@
 #include "../models/job.hpp"
 #include "utils.hpp"
 #include <algorithm>
+#include <climits>
+#include <cstdlib>
 #include <iostream>
 
 // Núcleo compartilhado por evaluate()/evaluateIntraRoute/evaluateInterRoute:
-// percorre uma rota, calcula tardiness/não-alocados/completion, e preenche os
-// bits de big_setup via getBits(resource_idx) — genérico o bastante pra servir
-// tanto pro bucket real (solution.resource_route_bits[r][rota]) quanto pro
-// buffer de trial (solution.trial_bits[r]), sem duplicar o loop de jobs.
+// percorre uma rota, calcula tardiness/não-alocados/completion e, se `trial` não
+// for nulo, registra o intervalo de ocupação de recurso de cada job alocado:
+//
+//     [start, min(H + 1, end + big_setup))
+//
+// Como a rota é percorrida em ordem e start só cresce ao longo dela, cada
+// trial->by_res[r] já sai ordenado por início, sem sort.
 //
 // write_job_fields controla se job.start/job.end são gravados de verdade:
 // true em evaluate() (commit real), false nas versões *Route (são só
 // simulação/candidato, não podem mutar o job de verdade até o movimento
 // vencedor ser aplicado).
-// Núcleo compartilhado por evaluate()/evaluateIntraRoute/evaluateInterRoute:
-// percorre uma rota, calcula tardiness/não-alocados/completion, e preenche os
-// bits de big_setup via getBits(resource_idx).
-template <typename BitsAccessor>
-static double computeRoute(std::vector<Job>& route, const ProblemData& problem_data, BitsAccessor getBits,
-                            std::vector<bool>& seen, std::vector<int>& touched, bool write_job_fields,
-                            int& out_allocated_jobs, bool is_pool_route) {
+static double computeRoute(std::vector<Job>& route, const ProblemData& problem_data, TrialIntervals* trial,
+                            bool write_job_fields, int& out_allocated_jobs, bool is_pool_route) {
     out_allocated_jobs = 0;
     if (is_pool_route) {
         if (write_job_fields) {
@@ -64,62 +64,166 @@ static double computeRoute(std::vector<Job>& route, const ProblemData& problem_d
         prev_idx = job.idx;
         sum_completion_time += end;
         last_completion_time = end;
-        /*
-         * Para o recurso de job, inicio e fim + big setup, coloca em 1 na matriz tridimensional 
-         * Marcamos como visto e tocado
-         */
-        if (count_machines > 1) {
-            set_range(getBits(job.resource_idx), start, std::min(H + 1, end + big_setup));
-            if (!seen[job.resource_idx]) {
-                seen[job.resource_idx] = true;
-                touched.push_back(job.resource_idx);
-            }
+
+        // Intervalo de ocupação do recurso do job (início, fim + big setup)
+        if (trial && count_machines > 1) {
+            trial->add(job.resource_idx, start, std::min(H + 1, end + big_setup));
         }
     }
 
     return sum_tardiness + epsilon * sum_completion_time;
 }
 
-// Devolve o buffer ao estado zerado, só nas entradas que foram tocadas.
-static void clearTrialBuffer(std::vector<std::vector<uint64_t>>& bits, std::vector<bool>& seen,
-                              std::vector<int>& touched) {
-    for (int r : touched) {
-        std::fill(bits[r].begin(), bits[r].end(), 0ULL);
-        seen[r] = false;
-    }
-    touched.clear();
-}
+// Refaz resource_intervals, pair_viol, row_viol e total_violations a partir de
+// job.start/job.end das rotas reais (que evaluate() acabou de atualizar nas
+// rotas sujas). Chamada só quando alguma rota mudou, ou seja, no commit de um
+// movimento aceito, na perturbação e na construção. Não é chamada por candidato.
+//
+// Para cada recurso: ordena os intervalos por (s, k, e) e varre em ordem de
+// início mantendo last_end[k] (maior fim já visto da máquina k). Ao chegar um
+// intervalo de início s da máquina k, toda outra máquina j com last_end[j] > s
+// ainda está ocupando o recurso, ou seja, o par (k, j) viola. O carimbo
+// pair_mark garante que cada par conte uma única vez por recurso.
+static void rebuildResourceIntervals(Solution& sol, const ProblemData& problem_data) {
+    const int M = problem_data.getCountMachines();
+    const int H = problem_data.getH();
+    const int big_setup = problem_data.getBigSetup();
 
-// Conta a quantidade exata de pares de rotas (k1 < k2) que violam a restrição de recurso r.
-template <typename BitsAccessor>
-static int countResourceViolations(int num_resources, int count_machines, BitsAccessor getBits) {
-    if (count_machines <= 1) return 0;
-    int violations = 0;
-    for (int r = 0; r < num_resources; r++) {
-        for (int k1 = 0; k1 < count_machines; k1++) {
-            const std::vector<uint64_t>& a = getBits(r, k1);
-            for (int k2 = k1 + 1; k2 < count_machines; k2++) {
-                const std::vector<uint64_t>& b = getBits(r, k2);
-                for (size_t w = 0; w < a.size(); w++) {
-                    if (a[w] & b[w]) {
-                        violations++;
-                        break; // Próximo par (k1, k2) para o recurso r
-                    }
-                }
-            }
+    for (auto& g : sol.resource_intervals) g.clear();
+    for (int k = 0; k < M; k++) {
+        for (const Job& job : sol.routes[k]) {
+            if (job.idx == 0 || job.start < 0) continue; // dummy ou não alocado
+            sol.resource_intervals[job.resource_idx].push_back({job.start, std::min(H + 1, job.end + big_setup), k});
         }
     }
-    return violations;
+
+    std::fill(sol.pair_viol.begin(), sol.pair_viol.end(), 0);
+    std::fill(sol.row_viol.begin(), sol.row_viol.end(), 0);
+    sol.total_violations = 0;
+
+    for (auto& g : sol.resource_intervals) {
+        if (g.size() < 2) continue;
+        std::sort(g.begin(), g.end(), [](const ResourceInterval& a, const ResourceInterval& b) {
+            if (a.s != b.s) return a.s < b.s;
+            if (a.k != b.k) return a.k < b.k;
+            return a.e < b.e;
+        });
+
+        sol.stamp++;
+        std::fill(sol.last_end.begin(), sol.last_end.end(), INT_MIN);
+        for (const ResourceInterval& x : g) {
+            for (int j = 0; j < M; j++) {
+                if (j == x.k || sol.last_end[j] <= x.s) continue;
+                size_t a = (size_t)x.k * M + j, b = (size_t)j * M + x.k;
+                if (sol.pair_mark[a] == sol.stamp) continue;
+                sol.pair_mark[a] = sol.pair_mark[b] = sol.stamp;
+                sol.pair_viol[a]++;
+                sol.pair_viol[b]++;
+                sol.row_viol[x.k]++;
+                sol.row_viol[j]++;
+                sol.total_violations++;
+            }
+            sol.last_end[x.k] = std::max(sol.last_end[x.k], x.e);
+        }
+    }
+}
+
+// Conta as violações de recurso em que a(s) rota(s) candidata(s) participam,
+// usando os intervalos de teste (trial1 para mm, trial2 para ll) contra os
+// intervalos committed das demais máquinas (resource_intervals sem mm e ll).
+//
+// mm/ll: rotas reais candidatas, ou -1 se ausente ou se for o pool virtual
+// (rota de índice M, jobs não processados, que não ocupa recurso nenhum).
+//
+// Para cada recurso tocado, faz um merge de até 3 listas ordenadas por início
+// (G sem mm/ll, A = trial de mm, B = trial de ll) mantendo last_end[k]:
+//   - intervalo de mm (A): toda outra máquina j (≠ mm, ≠ ll) com last_end[j] > s
+//     conflita com mm; se last_end[ll] > s, o par (mm, ll) conflita;
+//   - intervalo de ll (B): análogo;
+//   - intervalo de outra máquina k (G): se last_end[mm] > s conflita com mm, e
+//     se last_end[ll] > s conflita com ll.
+// mark_m/mark_l (carimbo) contam cada máquina uma vez por recurso, e o par
+// (mm, ll) conta uma vez. Custo por recurso: O(a_r + b_r + a_r * M).
+static int trialViolations(Solution& sol, int M, int mm, int ll) {
+    const TrialIntervals* tm = (mm >= 0) ? &sol.trial1 : nullptr;
+    const TrialIntervals* tl = (ll >= 0) ? &sol.trial2 : nullptr;
+
+    auto process = [&](int r) -> int {
+        const std::vector<std::pair<int, int>>* A = (tm && !tm->by_res[r].empty()) ? &tm->by_res[r] : nullptr;
+        const std::vector<std::pair<int, int>>* B = (tl && !tl->by_res[r].empty()) ? &tl->by_res[r] : nullptr;
+        if (!A && !B) return 0;
+        const std::vector<ResourceInterval>& G = sol.resource_intervals[r];
+        if (G.empty() && !(A && B)) return 0;
+
+        sol.stamp++;
+        const uint64_t stamp = sol.stamp;
+        std::fill(sol.last_end.begin(), sol.last_end.end(), INT_MIN);
+
+        int count = 0;
+        bool pair_ml = false;
+        size_t ig = 0, ia = 0, ib = 0;
+
+        while (true) {
+            while (ig < G.size() && (G[ig].k == mm || G[ig].k == ll)) ig++;
+            const bool hasG = ig < G.size();
+            const bool hasA = A && ia < A->size();
+            const bool hasB = B && ib < B->size();
+            if (!hasG && !hasA && !hasB) break;
+
+            // Escolhe a menor cabeça por início
+            int src = -1, best_s = INT_MAX;
+            if (hasG)  { src = 0; best_s = G[ig].s; }
+            if (hasA && (*A)[ia].first < best_s) { src = 1; best_s = (*A)[ia].first; }
+            if (hasB && (*B)[ib].first < best_s) { src = 2; best_s = (*B)[ib].first; }
+
+            int s = best_s, e, k;
+            if (src == 0) {
+                e = G[ig].e; k = G[ig].k; ig++;
+                if (mm >= 0 && sol.last_end[mm] > s && sol.mark_m[k] != stamp) { sol.mark_m[k] = stamp; count++; }
+                if (ll >= 0 && sol.last_end[ll] > s && sol.mark_l[k] != stamp) { sol.mark_l[k] = stamp; count++; }
+            } else if (src == 1) {
+                e = (*A)[ia].second; k = mm; ia++;
+                for (int j = 0; j < M; j++) {
+                    if (j == mm || j == ll || sol.last_end[j] <= s) continue;
+                    if (sol.mark_m[j] != stamp) { sol.mark_m[j] = stamp; count++; }
+                }
+                if (ll >= 0 && sol.last_end[ll] > s) pair_ml = true;
+            } else {
+                e = (*B)[ib].second; k = ll; ib++;
+                for (int j = 0; j < M; j++) {
+                    if (j == mm || j == ll || sol.last_end[j] <= s) continue;
+                    if (sol.mark_l[j] != stamp) { sol.mark_l[j] = stamp; count++; }
+                }
+                if (mm >= 0 && sol.last_end[mm] > s) pair_ml = true;
+            }
+            sol.last_end[k] = std::max(sol.last_end[k], e);
+        }
+        return count + (pair_ml ? 1 : 0);
+    };
+
+    int total = 0;
+    if (tm) {
+        for (int r : tm->touched) total += process(r);
+    }
+    if (tl) {
+        for (int r : tl->touched) {
+            if (tm && !tm->by_res[r].empty()) continue; // já processado junto com mm
+            total += process(r);
+        }
+    }
+    return total;
 }
 
 // Avalia todas as rotas da solução e retorna a FO total.
+// Também é o "commit": recalcula as rotas sujas (atualizando job.start/job.end)
+// e, se alguma mudou, refaz os intervalos de recurso e o total de violações.
 double evaluate(Solution& solution, const ProblemData& problem_data) {
     const int count_machines = problem_data.getCountMachines();
-    const int num_resources = problem_data.getNumResources();
     const double resource_violation_penalty = problem_data.getResourceViolationPenalty();
 
     double total = 0.0;
     int total_allocated = 0;
+    bool any_dirty = false;
 
     for (int m = 0; m < (int)solution.routes.size(); m++) {
         auto& route = solution.routes[m];
@@ -132,23 +236,9 @@ double evaluate(Solution& solution, const ProblemData& problem_data) {
             continue;
         }
 
-        if (count_machines > 1 && !is_pool) {
-            for (int r : cache.touched_resources) {
-                auto& bucket = solution.resource_route_bits[r][m];
-                std::fill(bucket.begin(), bucket.end(), 0ULL);
-            }
-        }
-
-        std::vector<bool> seen(count_machines > 1 ? num_resources : 0, false);
-        std::vector<int> new_touched;
-
-        cache.cost = computeRoute(
-            route, problem_data,
-            [&](int r) -> std::vector<uint64_t>& { return solution.resource_route_bits[r][m]; }, seen,
-            new_touched, true, cache.allocated_jobs, is_pool);
+        any_dirty = true;
+        cache.cost = computeRoute(route, problem_data, nullptr, true, cache.allocated_jobs, is_pool);
         cache.is_dirty = false;
-
-        if (count_machines > 1 && !is_pool) cache.touched_resources = std::move(new_touched);
 
         total += cache.cost;
         total_allocated += cache.allocated_jobs;
@@ -159,19 +249,29 @@ double evaluate(Solution& solution, const ProblemData& problem_data) {
     total += unallocated * problem_data.getWeightNotAllocated();
 
     if (count_machines > 1) {
-        int violations = countResourceViolations(num_resources, count_machines,
-            [&](int r, int k) -> const std::vector<uint64_t>& {
-                return solution.resource_route_bits[r][k];
-            });
-        total += violations * resource_violation_penalty;
+        if (any_dirty) rebuildResourceIntervals(solution, problem_data);
+        total += solution.total_violations * resource_violation_penalty;
     }
 
     return total;
 }
 
+#ifdef VERIFY_EVAL
+// Verificação (só em build com -DVERIFY_EVAL): recalcula a FO do estado atual
+// de solution do zero (todas as rotas sujas) e compara com o valor incremental.
+static void verifyAgainstFull(const Solution& solution, const ProblemData& problem_data, double value, const char* tag) {
+    Solution c = solution;
+    for (int i = 0; i < (int)c.routes.size(); i++) c.invalidateRoute(i);
+    double full = evaluate(c, problem_data);
+    if (std::fabs(full - value) > 1e-6 * (1.0 + std::fabs(full))) {
+        std::cerr << "[VERIFY_EVAL] divergencia em " << tag << ": incremental=" << value << " completo=" << full << std::endl;
+        std::abort();
+    }
+}
+#endif
+
 double evaluateIntraRoute(Solution& solution, const ProblemData& problem_data, int m) {
     const int count_machines = problem_data.getCountMachines();
-    const int num_resources = problem_data.getNumResources();
     const double resource_violation_penalty = problem_data.getResourceViolationPenalty();
 
     double total = 0.0;
@@ -185,10 +285,7 @@ double evaluateIntraRoute(Solution& solution, const ProblemData& problem_data, i
 
     int alloc_m = 0;
     bool is_pool = (m >= count_machines);
-    total += computeRoute(
-        solution.routes[m], problem_data,
-        [&](int resource_idx) -> std::vector<uint64_t>& { return solution.trial_bits[resource_idx]; }, solution.trial_seen,
-        solution.trial_touched, false, alloc_m, is_pool);
+    total += computeRoute(solution.routes[m], problem_data, &solution.trial1, false, alloc_m, is_pool);
     total_allocated += alloc_m;
 
     int total_jobs = problem_data.getNumJobs() - 1;
@@ -196,23 +293,25 @@ double evaluateIntraRoute(Solution& solution, const ProblemData& problem_data, i
     total += unallocated * problem_data.getWeightNotAllocated();
 
     if (count_machines > 1) {
-        int violations = countResourceViolations(num_resources, count_machines,
-            [&](int r, int k) -> const std::vector<uint64_t>& {
-                if (k == m) return is_pool ? solution.resource_route_bits[r][0] : solution.trial_bits[r];
-                return solution.resource_route_bits[r][k];
-            });
-        clearTrialBuffer(solution.trial_bits, solution.trial_seen, solution.trial_touched);
+        // V_novo = V_total - V_antigo(m) + V_trial(m); o pool virtual não ocupa recurso
+        int violations = solution.total_violations;
+        if (!is_pool) {
+            violations += trialViolations(solution, count_machines, m, -1) - solution.row_viol[m];
+        }
+        solution.trial1.clear();
         total += violations * resource_violation_penalty;
     }
 
+#ifdef VERIFY_EVAL
+    verifyAgainstFull(solution, problem_data, total, "evaluateIntraRoute");
+#endif
     return total;
 }
 
 double evaluateInterRoute(Solution& solution, const ProblemData& problem_data, int m, int l) {
     const int count_machines = problem_data.getCountMachines();
-    const int num_resources = problem_data.getNumResources();
     const double resource_violation_penalty = problem_data.getResourceViolationPenalty();
-    
+
     double total = 0.0;
     int total_allocated = 0;
     for (int k = 0; k < (int)solution.routes.size(); k++) {
@@ -226,16 +325,10 @@ double evaluateInterRoute(Solution& solution, const ProblemData& problem_data, i
     bool is_pool_m = (m >= count_machines);
     bool is_pool_l = (l >= count_machines);
 
-    total += computeRoute(
-        solution.routes[m], problem_data,
-        [&](int resource_idx) -> std::vector<uint64_t>& { return solution.trial_bits[resource_idx]; }, solution.trial_seen,
-        solution.trial_touched, false, alloc_m, is_pool_m);
+    total += computeRoute(solution.routes[m], problem_data, &solution.trial1, false, alloc_m, is_pool_m);
     total_allocated += alloc_m;
 
-    total += computeRoute(
-        solution.routes[l], problem_data,
-        [&](int resource_idx) -> std::vector<uint64_t>& { return solution.trial_bits2[resource_idx]; }, solution.trial_seen2,
-        solution.trial_touched2, false, alloc_l, is_pool_l);
+    total += computeRoute(solution.routes[l], problem_data, &solution.trial2, false, alloc_l, is_pool_l);
     total_allocated += alloc_l;
 
     int total_jobs = problem_data.getNumJobs() - 1;
@@ -243,16 +336,26 @@ double evaluateInterRoute(Solution& solution, const ProblemData& problem_data, i
     total += unallocated * problem_data.getWeightNotAllocated();
 
     if (count_machines > 1) {
-        int violations = countResourceViolations(num_resources, count_machines,
-            [&](int r, int k) -> const std::vector<uint64_t>& {
-                if (k == m) return is_pool_m ? solution.resource_route_bits[r][0] : solution.trial_bits[r];
-                if (k == l) return is_pool_l ? solution.resource_route_bits[r][0] : solution.trial_bits2[r];
-                return solution.resource_route_bits[r][k];
-            });
-        clearTrialBuffer(solution.trial_bits, solution.trial_seen, solution.trial_touched);
-        clearTrialBuffer(solution.trial_bits2, solution.trial_seen2, solution.trial_touched2);
+        // Rotas reais candidatas (o pool virtual, índice >= count_machines, não ocupa recurso)
+        const int mm = is_pool_m ? -1 : m;
+        const int ll = is_pool_l ? -1 : l;
+
+        // Violações antigas que envolvem mm ou ll: o par (mm, ll) aparece nas duas
+        // linhas, então é subtraído uma vez para não contar duas vezes.
+        int old_violations = 0;
+        if (mm >= 0) old_violations += solution.row_viol[mm];
+        if (ll >= 0) old_violations += solution.row_viol[ll];
+        if (mm >= 0 && ll >= 0) old_violations -= solution.pair_viol[(size_t)mm * count_machines + ll];
+
+        int violations = solution.total_violations - old_violations + trialViolations(solution, count_machines, mm, ll);
+
+        solution.trial1.clear();
+        solution.trial2.clear();
         total += violations * resource_violation_penalty;
     }
 
+#ifdef VERIFY_EVAL
+    verifyAgainstFull(solution, problem_data, total, "evaluateInterRoute");
+#endif
     return total;
 }
