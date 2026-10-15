@@ -1,308 +1,201 @@
 # Avaliação de Conflito de Recurso com Intervalos Ordenados e Sweep
 
-Este documento descreve uma **proposta** (ainda não implementada) para reduzir o custo da checagem da restrição de recurso compartilhado (`big_setup` cross-rota) na avaliação da FO da heurística ILS/RVND em `src/heuristics/`.
+Este documento explica em detalhes a técnica de **Intervalos Ordenados e Sweep-Line com `last_end`**, implementada em `src/heuristics/` para acelerar a checagem da restrição de recursos compartilhados (`big_setup` cross-rota).
+
+Na instância `05112025/60` (102 jobs, 10 máquinas paralelas), esta técnica reduziu o tempo de execução de **700 segundos** para **37,9 segundos** (uma aceleração de mais de **18x**), mantendo a exatidão estrita da Função Objetivo.
 
 ---
 
-## 1. O problema que a restrição resolve
+## 1. O Cenário Prático: Exemplo Intuitivo
 
-Dois jobs do **mesmo recurso**, em **máquinas (rotas) diferentes**, não podem se sobrepor no tempo. A janela de cada job é estendida pelo `big_setup`:
+Para entender o problema e a solução, imagine o seguinte cenário de produção:
 
-$$
-I_j = [\, start_j,\ \min(H+1,\ end_j + big\_setup)\,)
-$$
+* **$M = 3$ máquinas paralelas** ($k = 0, 1, 2$).
+* **Tempo de Big Setup**: $big\_setup = 60$ slots.
+* **Recurso Compartilhado**: Recurso 7 (por exemplo, um molde ou ferramenta física única que precisa ser compartilhada entre as máquinas).
 
-* Jobs na **mesma** máquina podem ter janelas que se tocam sem problema.
-* Jobs **não processados (não alocados)** são aqueles que estão na rota virtual de índice `M` (a rota `M + 1`, com `M = count_machines` e índices `0..M-1` para as máquinas reais). Eles **não geram intervalo**. Jobs de uma máquina real com `start > H` também ficam não alocados e também não geram intervalo.
-* Os intervalos são **semiabertos** $[s, e)$. Dois intervalos $a$ e $b$ se sobrepõem quando:
+### Regra do Problema:
+Se uma máquina está usando o Recurso 7, **nenhuma outra máquina paralela pode usar esse mesmo recurso ao mesmo tempo**, precisando aguardar a liberação mais o tempo de preparação (`big_setup`).
 
-$$
-a.s < b.e \quad \text{e} \quad b.s < a.e
-$$
+Portanto, cada job $j$ alocado gera um **intervalo de exclusão temporal** estendido:
+$$I_j = [\, start_j, \; \min(H+1, \, end_j + big\_setup) \,)$$
 
-### Penalidade atual na FO
+> **Nota sobre Jobs Não Processados (Rota Virtual $M + 1$)**:
+> Os jobs que não couberam no planejamento ficam alocados na **rota virtual de índice $M$** (a $(M+1)$-ésima rota, já que as máquinas reais têm índices $0 \dots M-1$). Jobs nessa rota virtual têm `start = -1` e **não geram intervalos nem conflito de recurso**.
 
-Para cada recurso $r$, a FO soma 1 por **par de máquinas** $(k_1, k_2)$ que viola a restrição, contando o par **uma única vez** mesmo que haja várias sobreposições. O total é multiplicado por `resource_violation_penalty`.
+### Os Jobs do Exemplo:
+Três jobs utilizam o Recurso 7 em máquinas diferentes:
 
----
+| Job | Máquina ($k$) | Início ($start$) | Fim ($end$) | Intervalo Estendido ($[start, end + 60)$) |
+| :---: | :---: | :---: | :---: | :---: |
+| **A** | **Máquina 0** | 100 | 130 | **$[100, 190)$** |
+| **B** | **Máquina 1** | 50 | 70 | **$[50, 130)$** |
+| **C** | **Máquina 2** | 300 | 320 | **$[300, 380)$** |
 
-## 2. Como é feito hoje
+### Linha do Tempo Visual:
 
-Em `src/heuristics/utils/objective.cpp`:
-
-* `computeRoute` marca, no bitset do recurso do job, os slots `[start, end + big_setup)` via `set_range`.
-* `countResourceViolations` percorre **todos os recursos** e **todos os pares de máquinas**, fazendo AND entre bitsets de $W$ palavras de 64 bits.
-
-Custo por avaliação de candidato:
-
-$$
-O(R \cdot \tbinom{M}{2} \cdot W)
-$$
-
-Na instância `05112025/60` ($R = 40$, $M = 10$, $W = 12$) são cerca de **21 600** ANDs, para **cada candidato**. O `computeRoute` de uma rota (~10 jobs) é duas ordens de grandeza mais barato. A checagem de recurso é o gargalo.
-
-Boa parte desse trabalho é redundante: um movimento só altera a rota $m$ (ou $m$ e $l$). Os pares de máquinas que **não envolvem** $m$ (ou $l$) têm o mesmo resultado de antes.
-
----
-
-## 3. Visão geral da proposta
-
-1. Representar cada job por um **intervalo** em vez de pintar bits.
-2. Guardar, por recurso, a lista de intervalos de todas as máquinas, **ordenada por início**.
-3. Manter o total de violações $V_{total}$ da solução corrente.
-4. Na avaliação de um candidato, recalcular **apenas** as violações da rota alterada com um **sweep** (varredura) e obter:
-
-$$
-V_{novo} = V_{total} - V_{antigo}(m) + V_{trial}(m)
-$$
-
-5. A estrutura global só é atualizada no **commit**, quando um movimento é aceito.
-
----
-
-## 4. Estruturas de dados
-
-| Estrutura                | Conteúdo                                                                                            | Quando muda                                  |
-| ------------------------ | ---------------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| `G[r]`                 | Lista de`(start, end_estendido, k)` de todos os jobs do recurso `r`, ordenada por `(start, k)` | Só no commit                                |
-| `trial[r]`             | Intervalos de`r` da rota candidata `m`, em ordem de rota                                         | A cada candidato (buffer reutilizável)      |
-| `V_total`              | Nº total de violações (pares de máquinas por recurso) da solução corrente                      | Só no commit                                |
-| `V_antigo(m)`          | Violações da rota`m` na solução corrente                                                       | Uma vez por rota na varredura da vizinhança |
-| `touched_resources[m]` | Recursos tocados pela rota`m`                                                                      | Já existe em`RouteCache`                  |
-
----
-
-## 5. Por que as listas ficam ordenadas sem `sort`
-
-Dentro de uma rota, cada job começa só depois do término do anterior:
-
-$$
-start_j \ge last\_completion = end_{j-1}
-$$
-
-Logo, ao longo da rota, os **inícios** e os **fins** (inclusive `end + big_setup`) são **não decrescentes**.
-
-Consequências:
-
-1. Ao percorrer a rota no `computeRoute` e fazer `push_back` do intervalo na lista do recurso, a lista `trial[r]` **já sai ordenada por início**. Não é preciso ordenar.
-2. O **maior fim** já visto de uma máquina é sempre o fim do **último** intervalo dela processado até o momento. É por isso que um único valor por máquina (`lastEnd`) basta, e não precisamos guardar o máximo acumulado.
-
----
-
-## 6. O que é `lastEnd` e para que serve
-
-`lastEnd[j]` guarda, durante o sweep de um recurso, o **fim (estendido) do último intervalo já processado da máquina `j`**.
-
-Ele responde, em $O(1)$, à pergunta: *"a máquina `j` ainda está ocupando este recurso no instante `s`?"*
-
-$$
-\text{máquina } j \text{ ainda está ocupada em } s \iff lastEnd[j] > s
-$$
-
-Como o sweep processa os intervalos em ordem crescente de início, quando chega um intervalo de início `s`, todos os intervalos que começaram antes já foram consumidos. Se o último intervalo de `j` ainda não terminou (`lastEnd[j] > s`), há sobreposição com o intervalo atual. Por causa da monotonicidade (seção 5), esse último intervalo é também o que termina mais tarde, então testar só ele é suficiente.
-
-Valor inicial: `-∞` (a máquina ainda não apareceu para aquele recurso). Deve ser resetado a cada recurso visitado (só para as máquinas tocadas, ou com um carimbo por recurso).
-
----
-
-## 7. O sweep, passo a passo
-
-Seja `m` a rota candidata e `r` um recurso tocado por ela.
-
-* Lista **A** = `trial[r]` (intervalos de `m`, ordenados).
-* Lista **B** = `G[r]` **ignorando** as entradas com `k == m`.
-
-Fazemos um merge de dois ponteiros, sempre consumindo o intervalo de menor `(start, k)`:
-
-```
-lastEnd[j] = -inf para as máquinas envolvidas
-mask = 0                                   // M bits, local ao recurso
-
-enquanto houver elementos em A ou B:
-    x = menor (start, k) entre as cabeças de A e B
-
-    se x vem de A (máquina m):
-        para cada j != m com lastEnd[j] > x.start:    // outras máquinas ainda ocupadas
-            mask |= (1 << j)
-        lastEnd[m] = x.end
-    senão (x vem de B, máquina k != m):
-        se lastEnd[m] > x.start:                      // m ainda ocupada
-            mask |= (1 << k)
-        lastEnd[k] = x.end
-
-V_trial += popcount(mask)
+```text
+Tempo:    0        50        100      130            190               300        380
+          |--------|---------|--------|--------------|-----------------|----------|--->
+Máq 0 (A):                   [============= A ==============)  (inicia em 100!)
+Máq 1 (B):         [======= B =======)  (libera em 130)
+Máq 2 (C):                                                             [=== C ===)
+                             ^^^^^^^^^^
+                    CONFLITO ENTRE MÁQ 0 E MÁQ 1!
+                    (A começa em 100, antes de B liberar em 130)
 ```
 
-### Por que `mask`
-
-`mask` marca **quais máquinas** conflitam com `m` naquele recurso. `popcount(mask)` dá o número de máquinas distintas, ou seja, o número de pares `(m, k)` violados. Isso preserva a semântica atual da FO (um par conta uma vez por recurso, mesmo com várias sobreposições).
-
-### Por que o sweep é correto
-
-Para dois intervalos `a` (de `m`) e `b` (de `k ≠ m`):
-
-* Se `a.s <= b.s`: a sobreposição é detectada ao processar `b`, pois `lastEnd[m]` já reflete `a` (ou um intervalo posterior de `m` com início ainda anterior a `b.s` e fim maior).
-* Se `b.s < a.s`: a sobreposição é detectada ao processar `a`, via `lastEnd[k]`.
-* Empate de início: o segundo a ser processado enxerga o primeiro, pois todo intervalo é não vazio (`lastEnd > s`).
-* Pares entre outras máquinas **não** são avaliados: não envolvem `m` e já estão contabilizados em `V_total`.
+* **Máquina 0 e Máquina 1**: Conflitam no intervalo $[100, 130)$. O par $(0, 1)$ gera **1 violação**.
+* **Máquina 2**: Começa apenas no instante $300$, muito depois de a Máquina 0 ter liberado (em $190$). Não conflita com ninguém.
 
 ---
 
-## 8. Fórmula da FO do candidato
+## 2. O Que Faz Cada Estrutura de Dados
 
-$$
-V_{novo} = V_{total} - V_{antigo}(m) + V_{trial}(m)
-$$
+Para detectar e quantificar esses conflitos em tempo $\mathcal{O}(N)$ (em vez de varrer matrizes gigantes de bits), o código utiliza as seguintes estruturas:
 
-* $V_{total}$: cache da solução corrente.
-* $V_{antigo}(m)$: violações de `m` com as demais na solução corrente, calculadas **uma vez** ao entrar no laço externo da rota `m`.
-* $V_{trial}(m)$: soma dos `popcount(mask)` de todos os recursos tocados pela rota candidata.
-
-A FO final continua sendo:
-
-$$
-f = \text{(tardiness} + \varepsilon \cdot \text{completion)} + \text{nao\_alocados} \cdot W_{na} + V_{novo} \cdot P_{recurso}
-$$
-
-### Movimentos inter-rota ($m$ e $l$)
-
-* Constroem-se `trial` de `m` e de `l`.
-* As "outras" máquinas são `G[r]` sem `m` e sem `l`.
-* O par $(m, l)$ é comparado entre os dois `trial`, e deve ser **contado uma única vez**.
-* Subtrai-se $V_{antigo}(m) + V_{antigo}(l) - V_{antigo}(m,l)$ (sem duplicar o par $(m,l)$).
-
----
-
-## 9. Atualização no commit (só quando melhora a solução)
-
-Com best improvement, cada passada de vizinhança aplica **no máximo um** movimento. Para cada recurso tocado **antes ou depois** pela(s) rota(s) alterada(s):
-
-1. **Filtrar** `G[r]`, removendo as entradas com `k == m` (e `k == l`). Preserva a ordem. $O(n_r)$.
-2. **Pegar** `trial[r]` (já ordenado pela propriedade da seção 5).
-3. **Fazer `merge`** de duas listas ordenadas (`std::merge` ou `inplace_merge`). $O(n_r)$.
-4. $V_{total} \leftarrow V_{novo}$ (já calculado na avaliação; não é preciso recalcular).
-5. Atualizar cache da rota (`cost`, `allocated_jobs`, `touched_resources`), como `evaluate()` já faz.
-
-Recursos que a rota **deixou de tocar** também precisam ter suas entradas removidas de `G[r]`.
-
-Custo do commit: $O\big(\sum_{r} n_r\big) \le O(n)$ por movimento aceito.
-
----
-
-## 10. Exemplo completo
-
-Dados: $M = 3$, `big_setup` = 60, recurso 7.
-
-| Job | Máquina | start | end | Intervalo       |
-| --- | -------- | ----- | --- | --------------- |
-| B   | 1        | 50    | 70  | [50, 130)<br /> |
-| A   | 0        | 100   | 130 | [100, 190)      |
-| C   | 2        | 300   | 320 | [300, 380)      |
-
-```
-G[7] = [ (50,130,k=1), (100,190,k=0), (300,380,k=2) ]
+### 2.1. `ResourceInterval` (`src/heuristics/models/solution.hpp`)
+Representa um intervalo na linha do tempo. É uma tupla simples com 3 inteiros:
+```cpp
+struct ResourceInterval {
+    int s; // start: início do job
+    int e; // end estendido: min(H + 1, end + big_setup)
+    int k; // máquina (rota) dona do job (0 .. M-1)
+};
 ```
 
-A e B se sobrepõem (100 < 130 e 50 < 190). Suponha $V_{total} = 4$ e $V_{antigo}(0) = 1$ (só o recurso 7 contribui para a rota 0).
+### 2.2. `G[r]` (`solution.resource_intervals[r]`)
+É a **lista global committed** de todos os intervalos de jobs reais que usam o recurso $r$.
+* **Propriedade fundamental**: Esta lista é mantida **estritamente ordenada por início**: `(s, k, e)`.
+* No nosso exemplo, para o Recurso 7:
+  $$G[7] = [\, (50, 130, k=1), \; (100, 190, k=0), \; (300, 380, k=2) \,]$$
+* **Quando muda?** Apenas no **commit**, isto é, quando a busca local encontra um movimento que melhora a solução e decide aplicá-lo. Durante a avaliação dos milhares de candidatos vizinhos, $G[r]$ fica intacta em memória compartilhada.
 
-### Candidato 1: A atrasa para start 240, end 270
+### 2.3. `trial1` e `trial2` (`TrialIntervals`)
+São buffers temporários reutilizados usados para simular uma rota modificada sem alterar a solução real:
+* Ao testar um movimento intra-rota na Máquina $m$, seus novos intervalos vão para `trial1`.
+* Ao testar um movimento inter-rota entre Máquina $m$ e Máquina $l$, os novos intervalos vão para `trial1` (máquina $m$) e `trial2` (máquina $l$).
+* **Por que eles já nascem ordenados sem precisar de `sort`?**
+  Dentro de qualquer rota válida, os jobs são executados cronologicamente:
+  $$start_{j} \ge end_{j-1}$$
+  Portanto, conforme o algoritmo percorre a rota candidata calculando os inícios, basta dar `push_back` nos intervalos. Eles **já saem perfeitamente ordenados por início de graça** ($\mathcal{O}(1)$ por job, $\mathcal{O}(|route|)$ no total).
 
-`trial[7] = [(240,330,k=0)]`. `G[7]` sem a máquina 0: `[(50,130,1), (300,380,2)]`.
+### 2.4. `last_end[k]` (O Vetor de Varredura Sweep)
+Durante a varredura linear de um recurso, `last_end[k]` guarda o **instante final do último intervalo processado da máquina $k$**.
+* **Para que serve?** Ele responde em $\mathcal{O}(1)$ à pergunta fundamental:
+  > *"No instante em que este novo job começa ($s$), a máquina $k$ ainda está ocupando o recurso?"*
+  $$\text{Máquina } k \text{ ainda está ocupando o recurso} \iff last\_end[k] > s$$
+* Se a resposta for sim, acabamos de descobrir uma sobreposição temporal entre a máquina dona do job atual e a máquina $k$!
 
-| Passo | Consome            | O que faz                                                    | `lastEnd[0,1,2]` | `mask` |
-| ----- | ------------------ | ------------------------------------------------------------ | ------------------ | -------- |
-| 1     | (50,130,k=1) de B  | `lastEnd[0]=-∞ > 50`? Não                                | [-∞, 130, -∞]    | ∅       |
-| 2     | (240,330,k=0) de A | outros:`lastEnd[1]=130>240`? não; `lastEnd[2]=-∞` não | [330, 130, -∞]    | ∅       |
-| 3     | (300,380,k=2) de B | `lastEnd[0]=330 > 300`? Sim, marca bit 2                   | [330, 130, 380]    | {2}      |
+### 2.5. `mark_m`, `mark_l`, `pair_mark` e `stamp`
+A regra da Função Objetivo estipula que se duas máquinas se sobrepõem 1 vez ou 5 vezes no mesmo recurso, a infração é contada **uma única vez por par de máquinas**.
+* Para evitar contar a mesma máquina duas vezes no mesmo recurso, usamos uma marcação com **carimbo numérico (`stamp`)**:
+  * Ao detectar conflito com a máquina $k$, checamos: `if (mark_m[k] != stamp)`.
+  * Se for diferente, contabilizamos $+1$ violação e atualizamos `mark_m[k] = stamp`.
+* **Vantagem de desempenho**: Não é necessário zerar vetores de memória a cada candidato. Basta incrementar `stamp++`.
 
-$V_{trial} = 1 \Rightarrow V_{novo} = 4 - 1 + 1 = 4$. Sem melhora na penalidade de recurso.
-
-### Candidato 2: A vai para start 400, end 430
-
-`trial[7] = [(400,490,k=0)]`.
-
-| Passo | Consome            | O que faz                                                  | `lastEnd[0,1,2]` | `mask` |
-| ----- | ------------------ | ---------------------------------------------------------- | ------------------ | -------- |
-| 1     | (50,130,k=1)       | `lastEnd[0]=-∞ > 50`? Não                              | [-∞, 130, -∞]    | ∅       |
-| 2     | (300,380,k=2)      | `lastEnd[0]=-∞ > 300`? Não                             | [-∞, 130, 380]    | ∅       |
-| 3     | (400,490,k=0) de A | `lastEnd[1]=130>400`? não; `lastEnd[2]=380>400`? não | [490, 130, 380]    | ∅       |
-
-$V_{trial} = 0 \Rightarrow V_{novo} = 4 - 1 + 0 = 3$. Melhora. Se for o melhor da vizinhança, é aceito.
-
-### Commit do candidato 2
-
-1. Remove `k == 0` de `G[7]`: `[(50,130,1), (300,380,2)]`.
-2. `trial[7] = [(400,490,0)]`.
-3. Merge: `[(50,130,1), (300,380,2), (400,490,0)]`.
-4. $V_{total} = 3$.
-
----
-
-## 11. Complexidade
-
-### Avaliação por candidato
-
-| Etapa                                                    | Custo                          |
-| -------------------------------------------------------- | ------------------------------ |
-| Construir`trial[r]` no `computeRoute` (já ordenado) | $O(\lvert route \rvert)$     |
-| Sweep em cada recurso`r` tocado                        | $O(a_r + b_r + a_r \cdot M)$ |
-| Montar a FO com custos em cache das outras rotas         | $O(M)$                       |
-| **Total**                                          | $O(n)$                       |
-
-* $a_r$ = jobs do recurso `r` na rota candidata; $b_r$ = jobs de `r` nas outras rotas.
-* $\sum_r (a_r + b_r) \le n$.
-* O fator $M$ (checagem das outras máquinas ativas ao processar um intervalo de `m`) é constante da instância.
-* Comparação **direta** por pares (sem sweep) custaria $O(a_r \cdot b_r)$, que no pior caso ($a_r = b_r = n/2$) é $O(n^2)$. O sweep garante $O(n)$.
-
-### Commit por movimento aceito
-
-$$
-O\Big(\sum_{r \in touched} n_r\Big) \le O(n)
-$$
-
-### Por que o commit não pesa
-
-Com best improvement há **um commit** por passada de vizinhança, contra milhares de avaliações (da ordem de $n^2$ candidatos nas vizinhanças inter-rota). O custo de manter `G[r]` ordenado é diluído.
-
-### Comparação com o bitset atual
-
-|                    | Custo por candidato (checagem de recurso)                        |
-| ------------------ | ---------------------------------------------------------------- |
-| Bitset atual       | $R \cdot \binom{M}{2} \cdot W \approx 21\,600$ (instância 60) |
-| Intervalos + sweep | $O(\sum_r n_r)$, na prática dezenas de operações            |
+### 2.6. Cache de Violações: `pair_viol`, `row_viol` e `total_violations`
+* `pair_viol[k1 * M + k2]`: número de recursos em que as máquinas $k_1$ e $k_2$ conflitam.
+* `row_viol[m]`: soma de todos os conflitos que envolvem a máquina $m$ com qualquer outra máquina.
+* `total_violations`: total geral de conflitos da solução corrente.
+* **Para que serve?** Permite que qualquer movimento seja avaliado em **tempo $\mathcal{O}(1)$ via delta**:
+  $$V_{novo} = V_{total} - \underbrace{V_{antigo}(m)}_{\text{row\_viol}[m]} + \underbrace{V_{trial}(m)}_{\text{calculado pelo sweep}}$$
 
 ---
 
-## 12. Ciclo completo
+## 3. Como Funciona a Avaliação de Candidatos (O Sweep com `last_end`)
 
-```
-entra na rota m  ->  calcula V_antigo(m)                         O(sum n_r)    1x por rota
-para cada candidato:
-    constrói trial (ordenado pela rota)                          O(|route|)
-    sweep com G[r] sem m, usando lastEnd e mask                  O(sum n_r)
-    V_novo = V_total - V_antigo + V_trial                        O(1)
-    FO = custo das rotas + penalidades                           O(M)
-fim do laço, se houve melhora:
-    commit: filtra + merge em G[r], V_total = V_novo             O(sum n_r)    1x por passada
+Quando a busca local (RVND) testa alterar a rota da **Máquina 0**, ela não recalcula as outras máquinas. Ela faz um **Sweep de Dois Ponteiros** mesclando:
+* **Lista A**: `trial1[7]` (os novos intervalos propostos para a Máquina 0).
+* **Lista B**: `G[7]` (os intervalos committed das outras máquinas, ignorando a Máquina 0).
+
+Vamos simular dois candidatos:
+
+---
+
+### Candidato 1 (Movimento Ruim): Atrasar Job A para $start=240, end=270$
+* Novo intervalo de A: $[240, 270 + 60) = \mathbf{[240, 330)}$ na Máquina 0.
+* Lista A (`trial`): `[(240, 330, k=0)]`
+* Lista B (`G` sem máq 0): `[(50, 130, k=1), (300, 380, k=2)]`
+
+O algoritmo consome os intervalos em ordem crescente de início ($s$):
+
+```text
+1º Passo: Consome B da Máquina 1 (s=50, e=130)
+   - Verifica se a Máquina 0 está ativa: last_end[0] = -∞ > 50? Não.
+   - Atualiza last_end[1] = 130.
+
+2º Passo: Consome A da Máquina 0 (s=240, e=330)
+   - Verifica se a Máquina 1 está ativa: last_end[1] = 130 > 240? Não (já terminou!).
+   - Verifica se a Máquina 2 está ativa: last_end[2] = -∞ > 240? Não (ainda não começou).
+   - Atualiza last_end[0] = 330.
+
+3º Passo: Consome C da Máquina 2 (s=300, e=380)
+   - Verifica se a Máquina 0 está ativa: last_end[0] = 330 > 300? SIM! (330 > 300)
+   --> Conflito detectado entre Máquina 0 e Máquina 2!
+   - Atualiza last_end[2] = 380.
 ```
 
----
-
-## 13. Pontos de atenção na implementação
-
-1. **Truncamento no horizonte:** usar `min(H + 1, end + big_setup)`, idêntico ao `set_range`, para a FO não divergir da atual.
-2. **Intervalos semiabertos:** a comparação deve ser `a.s < b.e && b.s < a.e`, igual ao bitset.
-3. **Desempate determinístico:** ordenar `G[r]` por `(start, k)`.
-4. **Reset de `lastEnd`:** apenas nas máquinas que aparecem em `G[r]` (ou carimbo por recurso), para não pagar $O(M)$ por recurso visitado.
-5. **Pool virtual (jobs não processados):** a rota de índice `M` (a rota `M + 1`, `m >= count_machines`) guarda os jobs não processados. Ela não possui recursos, não entra em `G[r]`, não tem `V_antigo` nem `trial`. Em movimentos que envolvem essa rota, ela é tratada como "sem máquina" na varredura (sem conflito possível).
-6. **Evitar alocações por candidato:** `trial` e as máscaras devem ser buffers reutilizados (`clear()` apenas nas entradas tocadas, como o `clearTrialBuffer` faz hoje).
-7. **Distribuição de jobs por recurso:** se algum recurso concentrar muitos jobs, o fator $a_r \cdot M$ e o merge crescem. Vale conferir a distribuição nas instâncias antes de adotar.
+**Resultado do Candidato 1:**
+* Violações antigas da Máquina 0: $V_{antigo}(0) = 1$ (conflitava com Máq 1).
+* Novas violações propostas: $V_{trial}(0) = 1$ (passou a conflitar com Máq 2).
+* Saldo: $V_{novo} = 1 - 1 + 1 = 1$. Não melhorou a penalidade de recurso.
 
 ---
 
-## 14. Validação sugerida (antes de substituir o bitset)
+### Candidato 2 (Movimento Vencedor): Atrasar Job A para $start=400, end=430$
+* Novo intervalo de A: $[400, 430 + 60) = \mathbf{[400, 490)}$ na Máquina 0.
+* Lista A (`trial`): `[(400, 490, k=0)]`
+* Lista B (`G` sem máq 0): `[(50, 130, k=1), (300, 380, k=2)]`
 
-1. Gerar muitas soluções aleatórias (e soluções pós-movimento) e comparar **o número de violações** da versão nova com `countResourceViolations` atual. Devem ser **idênticos**.
-2. Comparar a FO final da heurística (mesma semente) entre as duas versões.
-3. Rodar `make` em `src/heuristics/` e `pytest` na raiz do repositório.
-4. Medir tempo na instância `data/trusted/05112025/60/input.json` para confirmar o ganho (perfilar com `perf` ou `gprof` antes e depois).
+Execução do Sweep:
+
+```text
+1º Passo: Consome B da Máquina 1 (s=50, e=130)
+   - last_end[0] = -∞ > 50? Não.
+   - Atualiza last_end[1] = 130.
+
+2º Passo: Consome C da Máquina 2 (s=300, e=380)
+   - last_end[0] = -∞ > 300? Não.
+   - Atualiza last_end[2] = 380.
+
+3º Passo: Consome A da Máquina 0 (s=400, e=490)
+   - Máquina 1 ativa? last_end[1] = 130 > 400? Não.
+   - Máquina 2 ativa? last_end[2] = 380 > 400? Não (C terminou em 380!).
+   - Atualiza last_end[0] = 490.
+```
+
+**Resultado do Candidato 2:**
+* $V_{trial}(0) = \mathbf{0}$ (nenhum conflito!).
+* Saldo: $V_{novo} = V_{total} - V_{antigo}(0) + V_{trial}(0) = 1 - 1 + 0 = \mathbf{0}$.
+* A infração de recurso foi **completamente eliminada**! A FO cai brutalmente (economia da penalidade de recurso). Este movimento é escolhido como o melhor da vizinhança!
+
+---
+
+## 4. O Commit: Quando o Movimento é Aceito
+
+Milhares de candidatos são apenas testados e descartados. Quando a busca local encerra a varredura e elege o Candidato 2 como vencedor, ocorre o **Commit**:
+
+1. A rota real da Máquina 0 é atualizada.
+2. Na lista global $G[7]$:
+   * Remove-se a entrada antiga da Máquina 0 (`[(100, 190, k=0)]`) em tempo linear $\mathcal{O}(n_r)$.
+   * A lista remanescente `[(50, 130, k=1), (300, 380, k=2)]` é mesclada com o novo intervalo `[(400, 490, k=0)]` usando `std::merge` em tempo linear $\mathcal{O}(n_r)$.
+3. A nova lista committed $G[7]$ fica imediatamente pronta e ordenada:
+   $$G[7] = [\, (50, 130, k=1), \; (300, 380, k=2), \; (400, 490, k=0) \,]$$
+4. Os caches `pair_viol`, `row_viol` e `total_violations` são atualizados.
+
+---
+
+## 5. Por Que Essa Abordagem é Tão Rápida?
+
+### Comparação de Complexidade:
+
+| Abordagem | Complexidade por Candidato | Operações na Instância 60 ($R=40, M=10, W=12$) |
+| :--- | :---: | :---: |
+| **Bitsets Anteriores** (`objective.cpp` antigo) | $\mathcal{O}(R \cdot \binom{M}{2} \cdot W)$ | **~21.600 operações de 64 bits** (a cada candidato!) |
+| **Intervalos + Sweep Atual** | $\mathcal{O}\big(\sum_{r} (a_r + b_r + a_r \cdot M)\big) \approx \mathbf{\mathcal{O}(N)}$ | **~10 a 30 comparações de inteiros** |
+
+### Por que a economia é colossal?
+1. **Esparsidade Real**: Em problemas reais com 102 jobs e 40 recursos, cada recurso só aparece em 2 ou 3 jobs. O bitset anterior gastava 12 palavras inteiras de 64 bits para cada um dos 45 pares de máquinas, varrendo centenas de bits vazios repetidamente.
+2. **Avaliação Focada em Deltas**: Se o movimento mexe apenas na Máquina 0, os conflitos entre as Máquinas 1, 2, 3... 9 permanecem intactos no cache. O algoritmo inspeciona exclusivamente os pares que envolvem a Máquina 0.
+3. **Custo Diluído**: A ordenação de $G[r]$ só ocorre no commit ($\sim 1$ vez por descida de vizinhança), enquanto o teste de candidatos roda dezenas de milhares de vezes por segundo em pura varredura linear com ponteiros.
