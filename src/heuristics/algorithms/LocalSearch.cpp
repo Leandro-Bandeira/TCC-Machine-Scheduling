@@ -10,56 +10,6 @@
 #include "../utils/Debug.hpp"
 #include "../utils/params.hpp"
 
-// ---------------------------------------------------------------------------
-// 2-Opt
-// ---------------------------------------------------------------------------
-//
-// Dado um par de posições (i, j) com j >= i+2, inverte o segmento ]i, j]:
-//
-//   Antes:  ... | seq[i] | seq[i+1] ... seq[j] | seq[j+1] | ...
-//   Depois: ... | seq[i] | seq[j]   ... seq[i+1] | seq[j+1] | ...
-//
-// Exemplo para i=2, j=5 em sequência [0,1,2,3,4,5,6,7]:
-//   Inverte posições 3,4,5 → [0,1,2,5,4,3,6,7]
-//
-// O movimento é simétrico: inverter ]i,j] dá o mesmo resultado que inverter ]j,i]
-// portanto j sempre começa em i+2 (j=i+1 seria inversão de segmento de tamanho 1, no-op).
-// Os dummies nas pontas (posições 0 e size-1) nunca são movidos.
-/*
-bool LocalSearch::bestImprovement2Opt(const ProblemData &problemData, Solution &solution){
-    double bestDelta = solution.objective_function;
-    int best_route = -1, best_i = -1, best_j = -1;
-
-    for (int m = 0; m < (int)solution.routes.size(); m++) {
-        std::vector<Job>& route = solution.routes[m]; // referência: muta solution direto, sem copiar a solução inteira
-
-        for (size_t i = 1; i < route.size() - 1; i++) {
-            for (size_t j = i + 2; j < route.size() - 1; j++) {
-                std::reverse(route.begin() + i + 1, route.begin() + j + 1);
-
-                double delta = evaluateIntraRoute(solution, problemData, m);
-                if (bestDelta - delta > EPS_FO) {
-                    bestDelta = delta;
-                    best_route = m;
-                    best_i = i;
-                    best_j = j;
-                }
-                std::reverse(route.begin() + i + 1, route.begin() + j + 1); // desfaz
-            }
-        }
-    }
-
-    if (best_route != -1) {
-        std::reverse(solution.routes[best_route].begin() + best_i + 1,
-                     solution.routes[best_route].begin() + best_j + 1);
-        solution.invalidateRoute(best_route);
-        solution.objective_function = evaluate(solution, problemData);
-        Debug::log("Movimento 2opt, BestDelta aceito: " + std::to_string(bestDelta) + "\nBestDelta de fato " + std::to_string(solution.objective_function));
-        return true;
-    }
-    return false;
-}
-*/
 
 
 // ---------------------------------------------------------------------------
