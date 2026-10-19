@@ -204,4 +204,5 @@ pytest tests/test_output.py -v
 ## 8
 
 # Enviar para o remoto e receber do remoto
+
 https://www.digitalocean.com/community/tutorials/how-to-use-rsync-to-sync-local-and-remote-directories-pt
