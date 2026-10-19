@@ -172,6 +172,61 @@ Execução do Sweep:
 
 ---
 
+### 3.1. Passo a Passo Unificado: Merge On-The-Fly (`ig` / `ia`) com `last_end`
+
+Para visualizar a integração exata entre a **disputa dos ponteiros** (ordenação cronológica sem alocar vetores) e a **checagem de conflitos com `last_end`**, considere a simulação de um movimento intra-rota:
+
+* **Cenário:**
+  * Recurso compartilhado $R$ entre 3 máquinas paralelas ($0, 1, 2$).
+  * Movimento testado na **Máquina 0**: o Job B é alterado para o intervalo $[130, 220)$.
+  * **Lista $G$ (jobs committed das outras máquinas):**
+    * Posição 0: Job A da **Máq 1** $\rightarrow [100, 190)$
+    * Posição 1: Job C da **Máq 2** $\rightarrow [300, 380)$
+    *(Cursor `ig = 0`)*
+  * **Lista $G'$ (`trial1` - proposta nova da Máquina 0):**
+    * Posição 0: Job B da **Máq 0** $\rightarrow [130, 220)$
+    *(Cursor `ia = 0`)*
+  * **Estado inicial:** `last_end = [-∞, -∞, -∞]`, `violações = 0`.
+
+```text
+========================================================================================
+RODADA 1:
+  - Disputa: Cabeça de G (Job A, s=100) vs Cabeça de G' (Job B, s=130).
+             100 < 130 -> Consome Job A (Máquina 1). Avança ig = 1.
+  - Checagem last_end: Alguma outra máquina ativa em s=100?
+             last_end[0] = -∞ > 100? Não.
+             last_end[2] = -∞ > 100? Não.
+             -> Nenhum conflito.
+  - Atualização: last_end[1] = 190.
+  - Estado: last_end = [-∞, 190, -∞] | ig=1, ia=0
+
+RODADA 2:
+  - Disputa: Cabeça de G (Job C, s=300) vs Cabeça de G' (Job B, s=130).
+             130 < 300 -> Consome Job B (Máquina 0). Avança ia = 1 (G' esgotado).
+  - Checagem last_end: Alguma outra máquina ativa em s=130?
+             last_end[1] = 190 > 130? SIM! -> CONFLITO (Máquina 0 com Máquina 1)!
+             last_end[2] = -∞ > 130? Não.
+             -> Violações = 1. (Se abortar no primeiro conflito, a busca para aqui em O(1)!).
+  - Atualização: last_end[0] = 220.
+  - Estado: last_end = [220, 190, -∞] | ig=1, ia=1
+
+RODADA 3:
+  - Disputa: G' esgotado -> Consome o restante de G: Job C (Máquina 2). Avança ig = 2.
+  - Checagem last_end: Alguma outra máquina ativa em s=300?
+             last_end[0] = 220 > 300? Não (B terminou em 220).
+             last_end[1] = 190 > 300? Não (A terminou em 190).
+             -> Nenhum conflito.
+  - Atualização: last_end[2] = 380.
+  - Estado final: last_end = [220, 190, 380] | Listas esgotadas.
+========================================================================================
+```
+
+**Conclusão do Mecanismo:**
+1. O avanço simultâneo de `ig` e `ia` simula um *Merge Sort* ao vivo sem alocar 1 byte sequer de memória adicional.
+2. A checagem `last_end[k] > s` valida em $\mathcal{O}(1)$ (uma única comparação de inteiros) se a máquina dona do job atual colide com alguma das outras máquinas.
+
+---
+
 ## 4. O Commit: Quando o Movimento é Aceito
 
 Milhares de candidatos são apenas testados e descartados. Quando a busca local encerra a varredura e elege o Candidato 2 como vencedor, ocorre o **Commit**:
