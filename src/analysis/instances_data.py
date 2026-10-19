@@ -18,8 +18,11 @@ SCRIPTS_DIR = BASE_DIR / "src" / "main"
 INSTANCES_CSV = BASE_DIR / "data" / "instances.csv"
 RUN_CONFIG_JSON = BASE_DIR / "run_config.json"
 
+# Flag para ativar ou desativar os filtros de instâncias
+USE_INSTANCE_FILTERS = False  # True: aplica INSTANCE_FILTERS; False: inclui todas as instâncias
+
 # Cada tupla: (job_capacity, min_jobs, max_jobs)
-# Instâncias que não casam com nenhuma tupla são ignoradas.
+# Instâncias que não casam com nenhuma tupla são ignoradas quando USE_INSTANCE_FILTERS = True.
 INSTANCE_FILTERS: list[tuple[int, int, int]] = [
     (2, 5, 25),
     (1, 4, 30),
@@ -199,11 +202,12 @@ def generate_run_config(
     instances_csv: Path,
     out_path: Path,
     filters: list[tuple[int, int, int]] = INSTANCE_FILTERS,
+    use_filters: bool = USE_INSTANCE_FILTERS,
     skip_existing: bool = SKIP_EXISTING_OUTPUT,
 ) -> None:
     """
     Lê instances.csv e gera run_config.json.
-    Aceita apenas instâncias que casam com alguma tupla em filters:
+    Se use_filters=True, aceita apenas instâncias que casam com alguma tupla em filters:
       (job_capacity, min_jobs, max_jobs).
     skip_existing=True: ignora pares (dt, status) que já têm output.json.
     Ordena dt pelo total de jobs (menor → maior).
@@ -218,7 +222,7 @@ def generate_run_config(
         for row in _csv.DictReader(f):
             count = int(row["count_jobs"])
             capacity = int(row["job_capacity"])
-            if not _matches_filters(capacity, count, filters):
+            if use_filters and not _matches_filters(capacity, count, filters):
                 continue
             dt, status, machine = row["date"], row["status"], row["machine_name"]
             if skip_existing and _has_output(dt, status):
@@ -241,8 +245,9 @@ def generate_run_config(
         json.dump(config, f, indent=2, ensure_ascii=False)
 
     total = sum(len(v["only_status"]) for v in config.values())
+    filter_label = filters if use_filters else "desativados"
     print(f"\nrun_config.json gerado: {out_path}")
-    print(f"  {len(config)} datas | {total} lotes | filtros: {filters}")
+    print(f"  {len(config)} datas | {total} lotes | filtros: {filter_label}")
     if skip_existing and skipped:
         print(f"  {skipped} lotes ignorados (output.json já existe)")
 
