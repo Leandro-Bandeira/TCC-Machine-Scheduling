@@ -1,6 +1,17 @@
 """
-Executa data_input_process.py para todos os lotes em data/raw e gera
-data/instances.csv com o tamanho de cada instância.
+Orquestrador de Descoberta e Preparação de Instâncias de Otimização.
+
+Este módulo realiza o fluxo completo de pré-processamento das instâncias do projeto:
+1. Varre `data/raw/` para descobrir todos os lotes de demanda disponíveis (`<DDMMYYYY>/<status>/demanda/`).
+2. Executa `src/main/data_input_process.py` para cada data, gerando os arquivos estruturados `input.json` em `data/trusted/`.
+3. Coleta os metadados de cada instância (número de jobs, capacidade da máquina, horizonte, recursos necessários) e gera o arquivo `data/instances.csv`.
+4. Gera o arquivo central de execução `run_config.json`, que define quais datas, lotes (status) e máquinas serão de fato executados pelo otimizador MIP (`src/main/optimize.py`) ou pela Heurística C++ (`src/heuristics/`).
+   - Aplica filtros configuráveis (`INSTANCE_FILTERS`) por capacidade e número de jobs.
+   - Permite pular ou reexecutar instâncias já processadas (`SKIP_EXISTING_OUTPUT`).
+   - Ordena a fila de execução pelo número acumulado de jobs (instâncias menores primeiro).
+
+Uso:
+    python3 -m src.analysis.instances_data
 """
 
 import csv
@@ -18,35 +29,58 @@ SCRIPTS_DIR = BASE_DIR / "src" / "main"
 INSTANCES_CSV = BASE_DIR / "data" / "instances.csv"
 RUN_CONFIG_JSON = BASE_DIR / "run_config.json"
 
-# Flag para ativar ou desativar os filtros de instâncias
-USE_INSTANCE_FILTERS = False  # True: aplica INSTANCE_FILTERS; False: inclui todas as instâncias
+# Flag para ativar ou desativar os filtros de instâncias ao gerar o run_config.json
+# True: aplica INSTANCE_FILTERS; False: inclui todas as instâncias encontradas
+USE_INSTANCE_FILTERS = True
 
-# Cada tupla: (job_capacity, min_jobs, max_jobs)
-# Instâncias que não casam com nenhuma tupla são ignoradas quando USE_INSTANCE_FILTERS = True.
+# Critérios de filtro para elegibilidade das instâncias no run_config.json.
+# Cada tupla representa: (job_capacity, min_jobs, max_jobs).
+# Instâncias cuja capacidade da máquina e número de jobs não casarem com nenhuma tupla
+# serão descartadas do run_config.json quando USE_INSTANCE_FILTERS = True.
 INSTANCE_FILTERS: list[tuple[int, int, int]] = [
-    (2, 5, 25),
-    (1, 4, 30),
-    (10, 4, 200)
+    (2, 2, 300),
+    (1, 4, 300),
+    (10, 10, 300),
 ]
-SKIP_EXISTING_OUTPUT = False  # True: ignora dt/status que já têm output.json
+
+# Controla se ignora instâncias já resolvidas ou se limpa outputs anteriores:
+# True: ignora pares (dt, status) que já possuem output.json em data/trusted/
+# False: limpa previamente os output.json existentes para reexecução completa
+SKIP_EXISTING_OUTPUT = False
 
 PYTHON = sys.executable
 
 
 # -----------------------------------------------------------------------------
-# Utilitários
+# Utilitários de Data e Descoberta
 # -----------------------------------------------------------------------------
 
 
 def ddmmyyyy_to_iso(date_slug: str) -> str:
-    """'13102025' → '2025-10-13'"""
+    """
+    Converte uma string de data no formato slug 'DDMMYYYY' para o formato ISO 'YYYY-MM-DD'.
+
+    Args:
+        date_slug: Data no formato 'DDMMYYYY' (ex: '13102025').
+
+    Returns:
+        Data formatada em ISO 'YYYY-MM-DD' (ex: '2025-10-13').
+    """
     return datetime.strptime(date_slug, "%d%m%Y").strftime("%Y-%m-%d")
 
 
 def discover_batches(raw_dir: Path) -> list[tuple[str, str]]:
     """
-    Retorna lista de (date_slug, status_name) para todos os lotes
-    com pasta demanda/ em data/raw.
+    Varre o diretório de dados brutos (`data/raw`) e localiza todos os lotes válidos.
+
+    Um lote é considerado válido se estiver estruturado como:
+    `data/raw/<DDMMYYYY>/<status>/demanda/` contendo arquivos Parquet.
+
+    Args:
+        raw_dir: Caminho para o diretório `data/raw`.
+
+    Returns:
+        Lista de tuplas `(date_slug, status_name)`, ordenadas alfabeticamente.
     """
     batches = []
     for date_dir in sorted(raw_dir.iterdir()):
@@ -61,12 +95,24 @@ def discover_batches(raw_dir: Path) -> list[tuple[str, str]]:
 
 
 # -----------------------------------------------------------------------------
-# Pipeline
+# Pipeline de Ingestão e Processamento
 # -----------------------------------------------------------------------------
 
 
 def run_data_input(date_iso: str) -> bool:
-    """Executa data_input_process.py para uma data."""
+    """
+    Invoca o script `src/main/data_input_process.py` como subprocesso para uma data específica.
+
+    Esse processamento lê os arquivos Parquet de demanda de todos os status daquela data,
+    carrega os parâmetros de máquinas/recursos/turnos de `data/raw/model_config`,
+    e gera a representação serializada `input.json` em `data/trusted/<DDMMYYYY>/<status>/`.
+
+    Args:
+        date_iso: Data no formato ISO 'YYYY-MM-DD'.
+
+    Returns:
+        True se o subprocesso encerrou com sucesso (código 0), False caso contrário.
+    """
     cmd = [
         PYTHON,
         str(SCRIPTS_DIR / "data_input_process.py"),
@@ -85,14 +131,27 @@ def run_data_input(date_iso: str) -> bool:
 
 
 # -----------------------------------------------------------------------------
-# Geração do CSV de instâncias
+# Extração de Métricas e Geração do instances.csv
 # -----------------------------------------------------------------------------
 
 
 def collect_instances(trusted_dir: Path) -> list[dict]:
     """
-    Lê todos os input.json em trusted/ e retorna uma linha por máquina com:
-    date, status, machine_id, machine_name, job_capacity, count_jobs.
+    Lê todos os arquivos `input.json` em `data/trusted/` e compila os metadados de cada instância.
+
+    Extrai por máquina:
+    - Data e status da partição
+    - ID e nome da máquina
+    - Capacidade em sub-máquinas paralelas (job_capacity)
+    - Quantidade de jobs pendentes atribuídos
+    - Quantidade de recursos distintos requeridos
+    - Palavras de 64 bits necessárias para o modelo Time-Index (W(Necessario))
+
+    Args:
+        trusted_dir: Caminho para a pasta `data/trusted`.
+
+    Returns:
+        Lista de dicionários, onde cada item representa uma máquina em uma instância.
     """
     rows = []
     for input_file in sorted(trusted_dir.rglob("input.json")):
@@ -144,6 +203,13 @@ def collect_instances(trusted_dir: Path) -> list[dict]:
 
 
 def write_instances_csv(rows: list[dict], path: Path) -> None:
+    """
+    Persiste os registros coletados das instâncias no arquivo CSV de destino.
+
+    Args:
+        rows: Lista de dicionários gerada por `collect_instances`.
+        path: Caminho de saída (normalmente `data/instances.csv`).
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(
@@ -166,7 +232,7 @@ def write_instances_csv(rows: list[dict], path: Path) -> None:
 
 
 # -----------------------------------------------------------------------------
-# Geração do run_config.json
+# Geração do Arquivo de Configuração de Execução (run_config.json)
 # -----------------------------------------------------------------------------
 
 
@@ -174,7 +240,20 @@ _OPTIMAL_CONDITION = "TerminationCondition.convergenceCriteriaSatisfied"
 
 
 def _has_output(dt: str, status: str, trusted_dir: Path = TRUSTED_DIR) -> bool:
-    """Retorna True se output.json existe e todas as máquinas terminaram com Optimal."""
+    """
+    Verifica se uma instância específica já foi resolvida com sucesso no passado.
+
+    Considera resolvida se o arquivo `output.json` existir e todas as máquinas
+    escalonadas tiverem atingido a condição de parada ótima (`_OPTIMAL_CONDITION`).
+
+    Args:
+        dt: Data da partição em formato ISO 'YYYY-MM-DD'.
+        status: Identificador do status / lote.
+        trusted_dir: Diretório raiz de `data/trusted`.
+
+    Returns:
+        True se a instância já estiver resolvida e ótima, False caso contrário.
+    """
     from datetime import datetime as _dt
 
     date_slug = _dt.strptime(dt, "%Y-%m-%d").strftime("%d%m%Y")
@@ -192,6 +271,17 @@ def _has_output(dt: str, status: str, trusted_dir: Path = TRUSTED_DIR) -> bool:
 def _matches_filters(
     job_capacity: int, count_jobs: int, filters: list[tuple[int, int, int]]
 ) -> bool:
+    """
+    Valida se uma instância atende a pelo menos uma das faixas de filtragem configuradas.
+
+    Args:
+        job_capacity: Quantidade de sub-máquinas paralelas da máquina.
+        count_jobs: Quantidade de jobs pendentes atribuídos a ela.
+        filters: Lista de regras `(job_capacity, min_jobs, max_jobs)`.
+
+    Returns:
+        True se a instância for elegível segundo as regras, False caso contrário.
+    """
     return any(
         job_capacity == cap and min_j <= count_jobs <= max_j
         for cap, min_j, max_j in filters
@@ -206,11 +296,35 @@ def generate_run_config(
     skip_existing: bool = SKIP_EXISTING_OUTPUT,
 ) -> None:
     """
-    Lê instances.csv e gera run_config.json.
-    Se use_filters=True, aceita apenas instâncias que casam com alguma tupla em filters:
-      (job_capacity, min_jobs, max_jobs).
-    skip_existing=True: ignora pares (dt, status) que já têm output.json.
-    Ordena dt pelo total de jobs (menor → maior).
+    Lê o `data/instances.csv` e constrói o arquivo central `run_config.json`.
+
+    O `run_config.json` é a especificação que governa a execução do otimizador MIP
+    (`src/main/optimize.py`), do comparador de heurísticas (`src/analysis/compare_heuristic.py`)
+    e do orquestrador em lote (`./run.sh`).
+
+    Formato gerado:
+    ```json
+    {
+      "YYYY-MM-DD": {
+        "only_status": ["status_1", "status_2"],
+        "machines": ["processo_recurso_1", "processo_recurso_2"]
+      }
+    }
+    ```
+
+    Etapas do processamento:
+    1. Filtra instâncias por capacidade e volume de jobs caso `use_filters=True`.
+    2. Descarta instâncias já resolvidas otimamente caso `skip_existing=True`.
+    3. Agrupa por data e status quais máquinas devem ser otimizadas.
+    4. Ordena as datas pelo total acumulado de jobs (instâncias menores executam primeiro).
+    5. Grava o JSON formatado no caminho de destino.
+
+    Args:
+        instances_csv: Caminho para o `data/instances.csv` contendo as instâncias catalogadas.
+        out_path: Caminho onde o `run_config.json` será salvo.
+        filters: Lista de tuplas `(job_capacity, min_jobs, max_jobs)`.
+        use_filters: Se True, aplica a lista de filtros `filters`.
+        skip_existing: Se True, ignora instâncias com `output.json` já ótimo.
     """
     import csv as _csv
 
@@ -231,7 +345,7 @@ def generate_run_config(
             groups.setdefault(dt, {}).setdefault(status, set()).add(machine)
             dt_total_jobs[dt] = dt_total_jobs.get(dt, 0) + count
 
-    # Ordena dt por total de jobs acumulado (menor → maior)
+    # Ordena dt por total de jobs acumulado (menor → maior) para priorizar instâncias rápidas
     sorted_dts = sorted(groups, key=lambda d: dt_total_jobs[d])
 
     config: dict = {}
@@ -253,7 +367,7 @@ def generate_run_config(
 
 
 # -----------------------------------------------------------------------------
-# Limpeza de outputs não-elegíveis
+# Limpeza de Outputs Anteriores
 # -----------------------------------------------------------------------------
 
 
@@ -261,7 +375,16 @@ def cleanup_all_outputs(
     trusted_dir: Path = TRUSTED_DIR,
     latest_dir: Path = LATEST_DIR,
 ) -> None:
-    """Remove todos os output.json em trusted/ e todos os subdiretórios de latest/."""
+    """
+    Remove todos os arquivos `output.json` de `data/trusted/` e limpa `data/latest/`.
+
+    Essa limpeza é disparada quando `SKIP_EXISTING_OUTPUT = False`, garantindo
+    que nenhuma execução anterior interfira no novo ciclo do pipeline.
+
+    Args:
+        trusted_dir: Diretório raiz de `data/trusted/`.
+        latest_dir: Diretório raiz de `data/latest/`.
+    """
     import shutil
 
     deleted_outputs = 0
@@ -285,11 +408,19 @@ def cleanup_all_outputs(
 
 
 # -----------------------------------------------------------------------------
-# Orquestração principal
+# Orquestração Principal
 # -----------------------------------------------------------------------------
 
 
 def main() -> None:
+    """
+    Fluxo principal de orquestração do módulo:
+    1. Se `SKIP_EXISTING_OUTPUT` for False, executa a limpeza prévia de outputs antigos.
+    2. Descobre todos os lotes em `data/raw/` com `discover_batches`.
+    3. Executa `data_input_process.py` para cada data única encontrada, gerando os `input.json`.
+    4. Compila as métricas das instâncias em `data/instances.csv` via `collect_instances`.
+    5. Constrói o `run_config.json` aplicando os filtros configurados via `generate_run_config`.
+    """
     if not SKIP_EXISTING_OUTPUT:
         cleanup_all_outputs()
 
@@ -300,7 +431,7 @@ def main() -> None:
 
     print(f"Lotes encontrados: {len(batches)}\n")
 
-    # data_input_process roda uma vez por data
+    # Executa data_input_process uma única vez por data distinta
     dates_done: set[str] = set()
     for date_slug, _ in batches:
         date_iso = ddmmyyyy_to_iso(date_slug)
@@ -327,6 +458,7 @@ def main() -> None:
         print("\nNenhum input.json encontrado.")
         return
 
+    # Gera a matriz de instâncias ativas a serem processadas pelo pipeline
     generate_run_config(INSTANCES_CSV, RUN_CONFIG_JSON)
 
 

@@ -1,9 +1,24 @@
 """
-Roda/lê o output_heuristic.json para cada instância listada em run_config.json
-e compara o resultado com o output.json (solução do MIP), reportando
-diferença de função objetivo, não alocados e tempo de execução.
+Comparador de Desempenho: Otimização Exata (MIP) vs Heurística ILS/VNS.
 
-Gera data/heuristic_vs_mip.csv.
+Este módulo realiza a comparação sistemática entre:
+1. A solução exata gerada pelo solver MIP (`output.json`) via `src/main/optimize.py`.
+2. A solução heurística gerada pelo executável C++ (`output_heuristic.json`) via `src/heuristics/`.
+
+Para cada instância ativa listada em `run_config.json`:
+- Compila o binário da heurística C++ (`make -C src/heuristics`), se necessário.
+- Executa a heurística (ou reaproveita execuções prévias se `--skip-existing` for informado).
+- Compara métricas-chave por máquina:
+  - Função Objetivo (FO MIP vs FO Heurística, com diferença absoluta e percentual).
+  - Quantidade de jobs não alocados / penalizados (`unallocated`).
+  - Tempo de execução em segundos (`mip_time_seconds` vs `heuristic_time_seconds`).
+  - Gap do MIP e dimensões do problema (`count_jobs`, `count_machines`).
+
+Gera o relatório consolidado em `data/heuristic_vs_mip.csv`.
+
+Uso:
+    python3 -m src.analysis.compare_heuristic
+    python3 -m src.analysis.compare_heuristic --skip-existing
 """
 
 import csv
@@ -41,17 +56,45 @@ FIELDNAMES = [
 
 
 def iso_to_ddmmyyyy(dt: str) -> str:
-    """'2025-12-10' -> '10122025'"""
+    """
+    Converte uma string de data no formato ISO 'YYYY-MM-DD' para o formato 'DDMMYYYY'.
+
+    Args:
+        dt: Data no formato ISO 'YYYY-MM-DD' (ex: '2025-12-10').
+
+    Returns:
+        Data no formato 'DDMMYYYY' (ex: '10122025').
+    """
     return datetime.strptime(dt, "%Y-%m-%d").strftime("%d%m%Y")
 
 
 def build_heuristic() -> None:
+    """
+    Compila o executável C++ da heurística invocando `make` no diretório `src/heuristics/`.
+
+    Garante que as últimas alterações no código C++ sejam refletidas no binário `./heuristic`.
+
+    Raises:
+        subprocess.CalledProcessError: Se a compilação via `make` falhar.
+    """
     print("[build] make -C src/heuristics")
     subprocess.run(["make"], cwd=HEURISTICS_DIR, check=True)
 
 
 def run_heuristic(input_file: Path, machine_id: int) -> None:
-    """Executa o binário da heurística C++, gerando output_heuristic.json."""
+    """
+    Executa o binário da heurística C++ para uma máquina específica de uma instância.
+
+    Invoca `./heuristic <caminho_input.json> <machine_id>`. O binário salva o resultado
+    em `output_heuristic.json` no mesmo diretório do `input.json`.
+
+    Args:
+        input_file: Caminho para o `input.json` da instância.
+        machine_id: ID numérico da máquina a ser escalonada.
+
+    Raises:
+        subprocess.CalledProcessError: Se a execução do binário C++ retornar erro.
+    """
     subprocess.run(
         [str(HEURISTIC_BIN), str(input_file), str(machine_id)],
         capture_output=True,
@@ -63,7 +106,17 @@ def run_heuristic(input_file: Path, machine_id: int) -> None:
 def read_heuristic_json(
     heuristic_file: Path, machine_id: int
 ) -> tuple[float | None, float | None, int | None]:
-    """Lê os dados da máquina específica em output_heuristic.json."""
+    """
+    Extrai as métricas de desempenho de uma máquina específica a partir de `output_heuristic.json`.
+
+    Args:
+        heuristic_file: Caminho para o arquivo `output_heuristic.json`.
+        machine_id: ID numérico da máquina desejada.
+
+    Returns:
+        Tupla contendo `(objective_function, solve_time_seconds, count_jobs_not_allocated)`.
+        Retorna `(None, None, None)` se o arquivo não existir ou se a máquina não for encontrada.
+    """
     if not heuristic_file.exists():
         return None, None, None
     try:
@@ -82,6 +135,21 @@ def read_heuristic_json(
 
 
 def collect_comparisons(run_config: dict, skip_existing: bool = False) -> list[dict]:
+    """
+    Itera sobre a matriz de instâncias ativas em `run_config.json` e consolida a comparação MIP vs Heurística.
+
+    Para cada par (data, status) e cada máquina configurada:
+    1. Lê a solução MIP de `output.json`.
+    2. Lê (ou executa via C++) a solução da Heurística em `output_heuristic.json`.
+    3. Calcula diferenças absolutas e percentuais da função objetivo e do tempo de execução.
+
+    Args:
+        run_config: Dicionário carregado de `run_config.json`.
+        skip_existing: Se True, tenta ler `output_heuristic.json` existente sem reexecutar.
+
+    Returns:
+        Lista de dicionários formatados prontos para exportação em CSV.
+    """
     rows = []
 
     for dt, cfg in run_config.items():
@@ -199,6 +267,13 @@ def collect_comparisons(run_config: dict, skip_existing: bool = False) -> list[d
 
 
 def write_csv(rows: list[dict], path: Path) -> None:
+    """
+    Grava os registros comparativos entre MIP e Heurística no arquivo CSV de saída.
+
+    Args:
+        rows: Lista de dicionários com as métricas calculadas.
+        path: Caminho de destino (normalmente `data/heuristic_vs_mip.csv`).
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=FIELDNAMES)
@@ -208,6 +283,14 @@ def write_csv(rows: list[dict], path: Path) -> None:
 
 
 def main() -> None:
+    """
+    Ponto de entrada do script de comparação:
+    1. Lê os argumentos da linha de comando (`--skip-existing`).
+    2. Valida a existência de `run_config.json`.
+    3. Compila a heurística C++ com `make`.
+    4. Coleta as comparações para cada instância ativa em `run_config.json`.
+    5. Grava o relatório consolidado em `data/heuristic_vs_mip.csv`.
+    """
     import argparse
 
     parser = argparse.ArgumentParser(

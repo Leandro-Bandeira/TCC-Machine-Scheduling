@@ -1,7 +1,22 @@
 """
-Lê todos os output.json em data/trusted/ e gera data/results.csv com
-uma linha por máquina otimizada, cruzando com input.json para obter
-o nome da máquina e a quantidade de sub-máquinas.
+Consolidador de Resultados da Otimização Exata (MIP).
+
+Este módulo varre todos os arquivos de saída do solver MIP (`output.json`)
+gerados em `data/trusted/<DDMMYYYY>/<status>/` e cruza com os respectivos `input.json`
+para extrair métricas de desempenho e características das instâncias:
+- Data (`dt`) e lote (`status`)
+- Nome da máquina (`machine_name`) e capacidade de sub-máquinas paralelas (`count_machines`)
+- Quantidade total de jobs atribuídos à máquina (`count_jobs`)
+- Função Objetivo obtida (`objective_function`)
+- Gap de otimalidade MIP (`mip_gap`)
+- Quantidade de jobs não alocados / penalizados (`count_jobs_not_allocated`)
+- Tempo de resolução em segundos (`solve_time_seconds`)
+- Condição de término do solver (`termination_condition`)
+
+Gera o arquivo consolidado `data/results.csv`.
+
+Uso:
+    python3 -m src.analysis.results_data
 """
 
 import csv
@@ -28,11 +43,31 @@ FIELDNAMES = [
 
 
 def ddmmyyyy_to_iso(date_slug: str) -> str:
-    """'13102025' → '2025-10-13'"""
+    """
+    Converte data no formato 'DDMMYYYY' para o formato ISO 'YYYY-MM-DD'.
+
+    Args:
+        date_slug: Data como string 'DDMMYYYY' (ex: '13102025').
+
+    Returns:
+        Data no formato 'YYYY-MM-DD' (ex: '2025-10-13').
+    """
     return datetime.strptime(date_slug, "%d%m%Y").strftime("%Y-%m-%d")
 
 
 def collect_results(trusted_dir: Path) -> list[dict]:
+    """
+    Localiza e processa todos os arquivos `output.json` presentes em `data/trusted/`.
+
+    Para cada arquivo de resultado do MIP, busca o respectivo `input.json` na mesma pasta
+    para associar metadados da instância (nome da máquina e contagem de jobs válidos).
+
+    Args:
+        trusted_dir: Diretório raiz de dados confiáveis/processados (`data/trusted`).
+
+    Returns:
+        Lista de dicionários com as métricas consolidadas por máquina agendada.
+    """
     rows = []
 
     for output_file in sorted(trusted_dir.rglob("output.json")):
@@ -54,9 +89,10 @@ def collect_results(trusted_dir: Path) -> list[dict]:
         with open(output_file, encoding="utf-8") as f:
             output_data = json.load(f)
 
-        # machine_id → {machine_name, job_capacity}
+        # Mapeamento machine_id → objeto machine {machine_id, machine_name, job_capacity}
         machine_info = {m["machine_id"]: m for m in input_data.get("machines", [])}
 
+        # Contagem de jobs pendentes atribuídos a cada machine_id
         jobs_per_machine: dict[int, int] = {}
         for job in input_data.get("jobs", []):
             if job["Status_Processed"] != "":
@@ -87,6 +123,13 @@ def collect_results(trusted_dir: Path) -> list[dict]:
 
 
 def write_results_csv(rows: list[dict], path: Path) -> None:
+    """
+    Grava os resultados consolidados das otimizações no arquivo CSV de saída.
+
+    Args:
+        rows: Lista de dicionários contendo os dados por máquina.
+        path: Caminho do arquivo CSV de destino (normalmente `data/results.csv`).
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=FIELDNAMES)
@@ -96,6 +139,10 @@ def write_results_csv(rows: list[dict], path: Path) -> None:
 
 
 def main() -> None:
+    """
+    Executa a coleta de resultados de `data/trusted/`, ordena as instâncias
+    pelo número de jobs de forma decrescente e grava o `data/results.csv`.
+    """
     rows = collect_results(TRUSTED_DIR)
     if not rows:
         print("Nenhum output.json encontrado.")

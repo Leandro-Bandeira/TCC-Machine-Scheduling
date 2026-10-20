@@ -1,3 +1,18 @@
+"""
+Dashboard Interativo de Produção (Streamlit).
+
+Este módulo fornece uma interface visual interativa para inspeção detalhada
+dos planos de produção e escalonamentos gerados pelo otimizador ou heurística:
+- Gráficos de Gantt interativos (visão semanal e visão diária).
+- Detalhamento de alocação de sub-máquinas paralelas e intervalos de indisponibilidade/turnos.
+- Análise de tempos de setup entre famílias de produtos e transições de caixas.
+- Métricas de pontualidade, atrasos (tardiness) e identificação de gargalos.
+- Leitura dos dados pós-processados em `data/latest/` (arquivos Parquet e CSV).
+
+Uso:
+    streamlit run src/analysis/dashboard.py
+"""
+
 import json
 import argparse
 import logging
@@ -22,6 +37,7 @@ st.set_page_config(page_title="Planejamento de Produção", layout="wide")
 
 
 def _parse_args():
+    """Analisa argumentos opcionais passados na inicialização do Streamlit."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--latest-dir", type=Path, default=LATEST_DIR)
     parser.add_argument("--model-config-dir", type=Path, default=MODEL_CONFIG_DIR)
@@ -31,6 +47,7 @@ def _parse_args():
 
 @lru_cache(None)
 def add_business_days(base_date: datetime, n: int) -> datetime:
+    """Calcula uma data somando N dias úteis (segunda a sexta-feira)."""
     d = base_date
     remaining = n
     while remaining > 0:
@@ -46,6 +63,12 @@ def add_business_days(base_date: datetime, n: int) -> datetime:
 
 
 def create_week_gantt(df: pd.DataFrame):
+    """
+    Gera o gráfico Gantt interativo com agrupamento semanal (Plotly).
+
+    Exibe os blocos de jobs, setups e períodos de indisponibilidade
+    organizados por máquina física e faixas paralelas de sub-máquinas.
+    """
     df = df.copy()
     draw_priority = {"indisponivel": 0, "setup": 1, "job": 2}
     df["__draw_priority"] = df["tipo"].map(draw_priority).fillna(1).astype(int)

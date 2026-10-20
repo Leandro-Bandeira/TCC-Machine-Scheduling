@@ -1,10 +1,22 @@
 #!/usr/bin/env python3
 """
-Script de análise de ganhos dos movimentos de busca local a partir de execucao_debug.txt.
+Analisador de Eficácia dos Movimentos de Busca Local (RVND).
+
+Este script analisa o arquivo de log gerado pela heurística em C++ (`execucao_debug.txt`),
+extraindo todos os movimentos de vizinhança (Swap intra/inter, Or-Opt 1/2/3, 2-Opt)
+que geraram melhoria na Função Objetivo e foram aceitos.
+
+Métricas calculadas por tipo de movimento:
+- Quantidade total de melhorias obtidas (`Qtd`) e proporção (`% Qtd`).
+- Ganho total acumulado na Função Objetivo (`Ganho Total`).
+- Ganho médio por aplicação com sucesso (`Ganho Médio`).
+- Ganhos mínimo e máximo observados (`Mínimo`, `Máximo`).
+- Contribuição percentual do movimento para a melhoria global (`% Ganho`).
 
 Uso:
-    python3 src/analysis/moves_gain.py [caminho_execucao_debug.txt]
-    python3 -m src.analysis.moves_gain [caminho_execucao_debug.txt]
+    python3 -m src.analysis.moves_gain
+    python3 -m src.analysis.moves_gain caminho/para/execucao_debug.txt
+    python3 -m src.analysis.moves_gain --csv data/move_gain.csv
 """
 
 import argparse
@@ -17,6 +29,7 @@ from pathlib import Path
 
 
 def parse_arguments() -> argparse.Namespace:
+    """Configura e processa os argumentos de linha de comando."""
     parser = argparse.ArgumentParser(
         description="Analisa os ganhos dos movimentos de busca local registrados em execucao_debug.txt."
     )
@@ -36,6 +49,18 @@ def parse_arguments() -> argparse.Namespace:
 
 
 def resolve_log_path(provided_path: str | None) -> Path:
+    """
+    Resolve o caminho do arquivo `execucao_debug.txt`, checando os locais comuns caso não seja informado.
+
+    Args:
+        provided_path: Caminho opcional passado via CLI.
+
+    Returns:
+        Path para o arquivo existente.
+
+    Raises:
+        SystemExit: Caso o arquivo não exista nos caminhos padrão.
+    """
     if provided_path:
         p = Path(provided_path)
         if not p.exists():
@@ -61,7 +86,18 @@ def resolve_log_path(provided_path: str | None) -> Path:
 
 
 def parse_moves(log_file: Path) -> list[dict]:
-    """Lê o arquivo de log e extrai os registros de movimentos e ganhos."""
+    """
+    Lê o log `execucao_debug.txt` e extrai os registros de melhorias de busca local.
+
+    Interpreta linhas com o padrão:
+    `Movimento: <nome>, Ganho: <valor>, FO_Anterior: <valor>, FO_Nova: <valor>`
+
+    Args:
+        log_file: Caminho do arquivo de log.
+
+    Returns:
+        Lista de dicionários com movimento, ganho, FO anterior e FO nova.
+    """
     records = []
 
     pattern_new = re.compile(
@@ -88,7 +124,15 @@ def parse_moves(log_file: Path) -> list[dict]:
 
 
 def aggregate_stats(records: list[dict]) -> list[dict]:
-    """Agrega estatísticas por movimento sem depender de bibliotecas externas."""
+    """
+    Agrega as estatísticas descritivas (média, min, max, total e percentual) por movimento.
+
+    Args:
+        records: Lista de registros extraídos de `parse_moves`.
+
+    Returns:
+        Lista de dicionários ordenada de forma decrescente pelo Ganho Total.
+    """
     by_move = defaultdict(list)
     for r in records:
         if r["ganho"] is not None:
@@ -127,6 +171,7 @@ def aggregate_stats(records: list[dict]) -> list[dict]:
 
 
 def print_table(rows: list[dict], log_file: Path) -> None:
+    """Imprime a tabela consolidada de desempenho formatada no terminal."""
     print("\n" + "=" * 98)
     print("           RELATÓRIO DE GANHOS POR MOVIMENTO DE BUSCA LOCAL (RVND)")
     print("=" * 98)
@@ -176,6 +221,7 @@ def print_table(rows: list[dict], log_file: Path) -> None:
 
 
 def export_csv(rows: list[dict], csv_path: Path) -> None:
+    """Exporta a tabela calculada para um arquivo CSV formatado."""
     if not rows:
         return
     fieldnames = ["Movimento", "Qtd", "% Qtd", "Ganho Total", "Ganho Médio", "Mínimo", "Máximo", "% Ganho"]
@@ -188,6 +234,7 @@ def export_csv(rows: list[dict], csv_path: Path) -> None:
 
 
 def main():
+    """Coordena o parse dos argumentos, resolução do log, agregação e exibição das estatísticas."""
     args = parse_arguments()
     log_path = resolve_log_path(args.log_path)
     records = parse_moves(log_path)
