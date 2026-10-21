@@ -86,7 +86,10 @@ while IFS='|' read -r DT STATUSES MACHINES; do
 
   echo ""
   echo ">>> [2/3] optimize.py"
-  python3 src/main/optimize.py --dt "$DT" $ONLY_STATUS_ARG $ONLY_MACHINES_ARG $GUROBI_ARG $WARM_START_ARG
+  if ! python3 src/main/optimize.py --dt "$DT" $ONLY_STATUS_ARG $ONLY_MACHINES_ARG $GUROBI_ARG $WARM_START_ARG; then
+    echo "  [AVISO] Falha ao executar optimize.py para $DT — seguindo para a próxima instância..."
+    continue
+  fi
 
   echo ""
   echo ">>> [3/3] data_output_process.py"

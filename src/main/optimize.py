@@ -433,21 +433,40 @@ class TimeIndex:
         #solver.options["TimeLimit"] = 5
         solver.options["MemLimit"] = 60.0
         _t0 = perf_counter()
-        result = solver.solve(model, tee=True, warmstart=warmstart)
-        self.solve_time = perf_counter() - _t0
-        self.termination_condition = str(result.solver.termination_condition)
-
-        upper = result.problem[0].upper_bound
-        lower = result.problem[0].lower_bound
-        has_solution = upper is not None and upper < float("inf")
-
-        if has_solution:
-            self.objective_value = self._read_objective(model)
-            if upper != 0 and lower is not None:
-                self.mip_gap = round(abs(upper - lower) / abs(upper), 6)
+        try:
+            result = solver.solve(
+                model, tee=True, warmstart=warmstart, load_solutions=False
+            )
+            self.solve_time = perf_counter() - _t0
+            solver_msg = str(getattr(result.solver, "message", ""))
+            if "Unhandled Gurobi solve status (17)" in solver_msg:
+                self.termination_condition = "mem_limit"
             else:
+                self.termination_condition = str(result.solver.termination_condition)
+
+            upper = result.problem[0].upper_bound
+            lower = result.problem[0].lower_bound
+            has_solution = (
+                upper is not None
+                and abs(upper) < 1e99
+                and len(result.solution) > 0
+            )
+
+            if has_solution:
+                result.solver.status = pyo.SolverStatus.ok
+                model.solutions.load_from(result)
+                self.objective_value = self._read_objective(model)
+                if upper != 0 and lower is not None and abs(lower) < 1e99:
+                    self.mip_gap = round(abs(upper - lower) / abs(upper), 6)
+                else:
+                    self.mip_gap = None
+            else:
+                self.objective_value = None
                 self.mip_gap = None
-        else:
+        except Exception as exc:
+            self.solve_time = perf_counter() - _t0
+            print(f"[AVISO] Gurobi interrompido com exceção: {exc}")
+            self.termination_condition = "mem_limit"
             self.objective_value = None
             self.mip_gap = None
 
