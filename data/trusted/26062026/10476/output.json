@@ -1,0 +1,102 @@
+{
+  "machines_scheduling": [
+    {
+      "machine_id": 0,
+      "objective_function": 0.6782978723404255,
+      "mip_gap": 0.0,
+      "count_jobs_not_allocated": 0.0,
+      "solve_time_seconds": 15.596,
+      "termination_condition": "optimal",
+      "jobs": [
+        {
+          "job_id": 1,
+          "start": 48,
+          "end": 60,
+          "sub_machine": 1
+        },
+        {
+          "job_id": 6,
+          "start": 196,
+          "end": 279,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 35,
+          "start": 91,
+          "end": 251,
+          "sub_machine": 1
+        },
+        {
+          "job_id": 43,
+          "start": 62,
+          "end": 89,
+          "sub_machine": 1
+        },
+        {
+          "job_id": 49,
+          "start": 48,
+          "end": 53,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 50,
+          "start": 148,
+          "end": 194,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 51,
+          "start": 54,
+          "end": 100,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 62,
+          "start": 252,
+          "end": 412,
+          "sub_machine": 1
+        },
+        {
+          "job_id": 83,
+          "start": 101,
+          "end": 147,
+          "sub_machine": 0
+        }
+      ]
+    },
+    {
+      "machine_id": 3,
+      "objective_function": 0.27463863337713534,
+      "mip_gap": 0.0,
+      "count_jobs_not_allocated": 0.0,
+      "solve_time_seconds": 0.035,
+      "termination_condition": "optimal",
+      "jobs": [
+        {
+          "job_id": 84,
+          "start": 49,
+          "end": 49,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 96,
+          "start": 51,
+          "end": 52,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 97,
+          "start": 53,
+          "end": 56,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 98,
+          "start": 48,
+          "end": 48,
+          "sub_machine": 0
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,132 @@
+{
+  "machines_scheduling": [
+    {
+      "machine_id": 3,
+      "objective_function": 7310.592612859097,
+      "mip_gap": 1e-06,
+      "count_jobs_not_allocated": 2.0,
+      "solve_time_seconds": 140.131,
+      "termination_condition": "optimal",
+      "jobs": [
+        {
+          "job_id": 18,
+          "start": 170,
+          "end": 212,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 19,
+          "start": 213,
+          "end": 255,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 20,
+          "start": 127,
+          "end": 169,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 25,
+          "start": 48,
+          "end": 82,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 26,
+          "start": 83,
+          "end": 125,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 33,
+          "start": 48,
+          "end": 65,
+          "sub_machine": 1
+        },
+        {
+          "job_id": 38,
+          "start": 173,
+          "end": 220,
+          "sub_machine": 1
+        },
+        {
+          "job_id": 48,
+          "start": 257,
+          "end": 342,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 56,
+          "start": 225,
+          "end": 276,
+          "sub_machine": 1
+        },
+        {
+          "job_id": 63,
+          "start": 137,
+          "end": 171,
+          "sub_machine": 1
+        },
+        {
+          "job_id": 67,
+          "start": 67,
+          "end": 101,
+          "sub_machine": 1
+        },
+        {
+          "job_id": 68,
+          "start": 102,
+          "end": 136,
+          "sub_machine": 1
+        },
+        {
+          "job_id": 49,
+          "start": -1,
+          "end": -1,
+          "sub_machine": -1
+        },
+        {
+          "job_id": 50,
+          "start": -1,
+          "end": -1,
+          "sub_machine": -1
+        }
+      ]
+    },
+    {
+      "machine_id": 4,
+      "objective_function": 761.599211563732,
+      "mip_gap": 0.0,
+      "count_jobs_not_allocated": 1.0,
+      "solve_time_seconds": 0.695,
+      "termination_condition": "optimal",
+      "jobs": [
+        {
+          "job_id": 75,
+          "start": 48,
+          "end": 87,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 81,
+          "start": 152,
+          "end": 215,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 82,
+          "start": 88,
+          "end": 151,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 76,
+          "start": -1,
+          "end": -1,
+          "sub_machine": -1
+        }
+      ]
+    }
+  ]
+}
