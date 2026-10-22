@@ -5,26 +5,26 @@
       "objective_function": 0.5569267515923567,
       "mip_gap": 0.0,
       "count_jobs_not_allocated": 0.0,
-      "solve_time_seconds": 0.349,
+      "solve_time_seconds": 0.847,
       "termination_condition": "optimal",
       "jobs": [
         {
           "job_id": 8,
           "start": 336,
           "end": 394,
-          "sub_machine": 1
+          "sub_machine": 0
         },
         {
           "job_id": 9,
           "start": 336,
           "end": 370,
-          "sub_machine": 0
+          "sub_machine": 1
         },
         {
           "job_id": 13,
           "start": 624,
           "end": 632,
-          "sub_machine": 1
+          "sub_machine": 0
         }
       ]
     }

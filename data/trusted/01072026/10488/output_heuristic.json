@@ -4,22 +4,12 @@
             "count_jobs_not_allocated": 0,
             "jobs": [
                 {
-                    "due_date_slot": 287,
-                    "end": 100,
-                    "job_id": 17,
-                    "processing_slots": 52,
-                    "release_date_slot": 0,
-                    "resource_id": 1,
-                    "start": 48,
-                    "sub_machine": 0
-                },
-                {
                     "due_date_slot": 576,
                     "end": 396,
-                    "job_id": 19,
+                    "job_id": 18,
                     "processing_slots": 60,
                     "release_date_slot": 288,
-                    "resource_id": 2,
+                    "resource_id": 1,
                     "start": 336,
                     "sub_machine": 0
                 },
@@ -34,6 +24,16 @@
                     "sub_machine": 0
                 },
                 {
+                    "due_date_slot": 287,
+                    "end": 100,
+                    "job_id": 17,
+                    "processing_slots": 52,
+                    "release_date_slot": 0,
+                    "resource_id": 1,
+                    "start": 48,
+                    "sub_machine": 1
+                },
+                {
                     "due_date_slot": 576,
                     "end": 345,
                     "job_id": 1,
@@ -46,17 +46,17 @@
                 {
                     "due_date_slot": 576,
                     "end": 406,
-                    "job_id": 18,
+                    "job_id": 19,
                     "processing_slots": 60,
                     "release_date_slot": 288,
-                    "resource_id": 1,
+                    "resource_id": 2,
                     "start": 346,
                     "sub_machine": 1
                 }
             ],
             "machine_id": 0,
             "objective_function": 0.41471571906354515,
-            "solve_time_seconds": 0.000946843
+            "solve_time_seconds": 0.000557019
         },
         {
             "count_jobs_not_allocated": 0,
@@ -104,7 +104,7 @@
             ],
             "machine_id": 3,
             "objective_function": 0.24604359510301585,
-            "solve_time_seconds": 0.000346529
+            "solve_time_seconds": 0.000268405
         }
     ]
 }

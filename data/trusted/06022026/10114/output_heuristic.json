@@ -14,9 +14,9 @@
                     "sub_machine": 0
                 },
                 {
-                    "due_date_slot": 864,
+                    "due_date_slot": 287,
                     "end": 62,
-                    "job_id": 183,
+                    "job_id": 181,
                     "processing_slots": 7,
                     "release_date_slot": 0,
                     "resource_id": 0,
@@ -24,9 +24,9 @@
                     "sub_machine": 0
                 },
                 {
-                    "due_date_slot": 864,
+                    "due_date_slot": 1152,
                     "end": 69,
-                    "job_id": 182,
+                    "job_id": 185,
                     "processing_slots": 7,
                     "release_date_slot": 0,
                     "resource_id": 0,
@@ -34,9 +34,9 @@
                     "sub_machine": 0
                 },
                 {
-                    "due_date_slot": 287,
+                    "due_date_slot": 864,
                     "end": 76,
-                    "job_id": 181,
+                    "job_id": 182,
                     "processing_slots": 7,
                     "release_date_slot": 0,
                     "resource_id": 0,
@@ -44,9 +44,9 @@
                     "sub_machine": 0
                 },
                 {
-                    "due_date_slot": 1152,
+                    "due_date_slot": 864,
                     "end": 83,
-                    "job_id": 185,
+                    "job_id": 183,
                     "processing_slots": 7,
                     "release_date_slot": 0,
                     "resource_id": 0,
@@ -66,7 +66,7 @@
             ],
             "machine_id": 0,
             "objective_function": 0.27760051052967455,
-            "solve_time_seconds": 0.000468584
+            "solve_time_seconds": 0.000333959
         },
         {
             "count_jobs_not_allocated": 0,
@@ -124,7 +124,7 @@
             ],
             "machine_id": 3,
             "objective_function": 0.4165390505359878,
-            "solve_time_seconds": 0.001080114
+            "solve_time_seconds": 0.000603816
         }
     ]
 }
