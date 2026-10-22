@@ -218,7 +218,7 @@ void ReadInstance::saveOutputJson(const std::string& input_path, int machine_id,
     std::ofstream out_file(output_p);
     if (out_file.is_open()) {
         out_file << root.dump(4) << std::endl;
-        std::cout << "\n[output] Salvo em: " << output_p.string() << std::endl;
+        // std::cout << "\n[output] Salvo em: " << output_p.string() << std::endl;
     } else {
         std::cerr << "\n[erro] Não foi possível salvar em: " << output_p.string() << std::endl;
     }

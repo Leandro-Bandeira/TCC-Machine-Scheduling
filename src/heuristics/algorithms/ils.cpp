@@ -254,7 +254,7 @@ void ILS::algorithm(const std::string& input_path, int machine_id){
     // evaluate() na solução real (roda apenas em cópias temporárias). Por isso job.start/end
     // ficam desatualizados em relação à ordem final das rotas — resincroniza aqui antes de reportar.
     bestAllSolution.objective_function = evaluate(bestAllSolution, problem_data);
-    printRoutes(bestAllSolution);
+    // printRoutes(bestAllSolution);
     this->solution = bestAllSolution;
 
     std::cout << "Best solution: " << bestAllSolution.objective_function << std::endl;

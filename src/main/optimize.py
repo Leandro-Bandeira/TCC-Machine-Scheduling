@@ -51,9 +51,10 @@ class TimeIndex:
             ]
             for job in self.jobs_data
         }
-        print(
-            f"  H_efetivo={h_effective} (original H={self.machine_data.start_slots[-1] if self.machine_data.start_slots else 0}, slots reduzidos)"
-        )
+        
+        # print(
+        #     f"  H_efetivo={h_effective} (original H={self.machine_data.start_slots[-1] if self.machine_data.start_slots else 0}, slots reduzidos)"
+        # )
         self.count_machines = self.machine_data.job_capacity
         print(
             f"Resolvendo para a máquina: {self.machine_data.machine_name}, Jobs: {len(self.jobs_data)}, Machines: {self.count_machines}"
@@ -166,7 +167,7 @@ class TimeIndex:
         )
 
         W = time_slots[-1] + 1
-        print(f"Valor de big W: {W}")
+        # print(f"Valor de big W: {W}")
         model.penalty = sum(W * model.y[job.id] for job in jobs_data)
         model.objective = pyo.Objective(
             expr=model.C_max + model.penalty, sense=pyo.minimize
@@ -284,9 +285,9 @@ class TimeIndex:
     def _apply_warm_start(self, heuristic_jobs: list[dict]):
         model = self.model
         jobs_data = self.jobs_data
-        print(
-            f"  [Warm Start] Inicializando modelo Pyomo com {len(heuristic_jobs)} jobs da heurística..."
-        )
+        # print(
+        #     f"  [Warm Start] Inicializando modelo Pyomo com {len(heuristic_jobs)} jobs da heurística..."
+        # )
 
         # Inicializa todos os y como 1 (não alocado) e C como 0 por padrão
         for job in jobs_data:
@@ -313,9 +314,9 @@ class TimeIndex:
                     model.C[job_id].value = start + proc
                     warm_count += 1
 
-        print(
-            f"  [Warm Start] Sucesso: {warm_count} variáveis x_jtm inicializadas com 1.0"
-        )
+        # print(
+        #     f"  [Warm Start] Sucesso: {warm_count} variáveis x_jtm inicializadas com 1.0"
+        # )
 
     def optimize(
         self,
@@ -383,36 +384,36 @@ class TimeIndex:
 
         t0 = perf_counter()
         model.single_start = pyo.Constraint(jobs_data, rule=self._single_start_rule)
-        print(f"[single_start] {perf_counter() - t0:.3f}s")
+        # print(f"[single_start] {perf_counter() - t0:.3f}s")
 
         t0 = perf_counter()
         model.completion_time = pyo.Constraint(
             jobs_data, rule=self._completion_time_rule
         )
-        print(f"[completion_time] {perf_counter() - t0:.3f}s")
+        # print(f"[completion_time] {perf_counter() - t0:.3f}s")
 
         t0 = perf_counter()
         model.machine_capacity = pyo.Constraint(
             capacity_indexes, rule=self._machine_capacity_rule
         )
-        print(f"[machine_capacity] {perf_counter() - t0:.3f}s")
+        # print(f"[machine_capacity] {perf_counter() - t0:.3f}s")
 
         t0 = perf_counter()
         model.setup_machine = pyo.Constraint(
             setup_indexes, rule=self._setup_machine_rule
         )
-        print(f"[setup_machine] {perf_counter() - t0:.3f}s")
+        # print(f"[setup_machine] {perf_counter() - t0:.3f}s")
 
         if count_machines > 1:
             t0 = perf_counter()
             model.resource_constraint = pyo.Constraint(
                 resource_indexes, rule=self._resource_constraint_rule
             )
-            print(f"[resource_constraint] {perf_counter() - t0:.3f}s")
+            # print(f"[resource_constraint] {perf_counter() - t0:.3f}s")
 
         t0 = perf_counter()
         self.minimize_sum_tardiness(model, time_slots, jobs_data)
-        print(f"[sum_tardiness] {perf_counter() - t0:.3f}s")
+        # print(f"[sum_tardiness] {perf_counter() - t0:.3f}s")
 
         if use_warm_start and heuristic_jobs:
             self._apply_warm_start(heuristic_jobs)
@@ -457,7 +458,7 @@ class TimeIndex:
 
     def _solve_with_gurobi(self, model, warmstart: bool = False):
         solver = pyo.SolverFactory("gurobi")
-        #solver.options["TimeLimit"] = 5
+        solver.options["TimeLimit"] = 3600
         solver.options["MemLimit"] = 60.0
         _t0 = perf_counter()
         try:
@@ -520,7 +521,7 @@ def main(
     if use_warm_start:
         heuristic_file = data_input_path.parent / "output_heuristic.json"
         if heuristic_file.exists():
-            print(f"[Warm Start] Lendo arquivo da heurística: {heuristic_file}")
+            # print(f"[Warm Start] Lendo arquivo da heurística: {heuristic_file}")
             try:
                 with open(heuristic_file, "r") as hf:
                     h_json = json.load(hf)
