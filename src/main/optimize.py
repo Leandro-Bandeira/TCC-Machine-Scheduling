@@ -62,6 +62,7 @@ class TimeIndex:
 
         self.model = pyo.ConcreteModel("Time Index Model")
         self.objective_value = None
+        self.warm_start_value = None
         self.mip_gap = None
         self.solve_time = 0.0
         self.termination_condition = "unknown"
@@ -223,6 +224,7 @@ class TimeIndex:
                     {
                         "machine_id": machine_id,
                         "objective_function": None,
+                        "warm_start_value": self.warm_start_value,
                         "mip_gap": None,
                         "count_jobs_not_allocated": len(self.jobs_data),
                         "solve_time_seconds": round(self.solve_time, 3),
@@ -273,6 +275,7 @@ class TimeIndex:
                 {
                     "machine_id": machine_id,
                     "objective_function": self.objective_value,
+                    "warm_start_value": self.warm_start_value,
                     "mip_gap": self.mip_gap,
                     "count_jobs_not_allocated": count_jobs_not_allocated,
                     "solve_time_seconds": round(self.solve_time, 3),
@@ -323,6 +326,7 @@ class TimeIndex:
         use_gurobi: bool = False,
         use_warm_start: bool = False,
         heuristic_jobs: list[dict] | None = None,
+        warm_start_value: float | None = None,
     ):
         self._use_gurobi = use_gurobi
         model = self.model
@@ -417,6 +421,7 @@ class TimeIndex:
 
         if use_warm_start and heuristic_jobs:
             self._apply_warm_start(heuristic_jobs)
+            self.warm_start_value = warm_start_value
 
         model.write("model.lp", io_options={"symbolic_solver_labels": True})
 
@@ -527,7 +532,7 @@ def main(
                     h_json = json.load(hf)
                     for m_entry in h_json.get("machines_scheduling", []):
                         m_id = m_entry.get("machine_id")
-                        heuristic_data_by_machine[m_id] = m_entry.get("jobs", [])
+                        heuristic_data_by_machine[m_id] = m_entry
             except Exception as exc:
                 print(f"[Warm Start] Erro ao ler output_heuristic.json: {exc}")
         else:
@@ -567,11 +572,14 @@ def main(
             resources_data=machine_resources,
             big_setup=big_setup,
         )
-        h_jobs = heuristic_data_by_machine.get(machine_id)
+        h_entry = heuristic_data_by_machine.get(machine_id, {})
+        h_jobs = h_entry.get("jobs")
+        h_fo = h_entry.get("objective_function")
         time_index_model.optimize(
             use_gurobi=use_gurobi,
             use_warm_start=use_warm_start,
             heuristic_jobs=h_jobs,
+            warm_start_value=h_fo,
         )
 
         output = time_index_model.generate_output()

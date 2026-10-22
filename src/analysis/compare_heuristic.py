@@ -43,6 +43,7 @@ FIELDNAMES = [
     "count_jobs",
     "count_machines",
     "mip_fo",
+    "warm_start_value",
     "heuristic_fo",
     "fo_diff",
     "fo_diff_pct",
@@ -197,6 +198,7 @@ def collect_comparisons(run_config: dict, skip_existing: bool = False) -> list[d
                 count_machines = job_capacity_by_id.get(machine_id)
 
                 mip_fo = mach.get("objective_function")
+                warm_start_value = mach.get("warm_start_value")
                 mip_gap = mach.get("mip_gap")
                 mip_time = mach.get("solve_time_seconds")
                 mip_unallocated = mach.get("count_jobs_not_allocated", 0)
@@ -244,6 +246,7 @@ def collect_comparisons(run_config: dict, skip_existing: bool = False) -> list[d
                         "count_jobs": count_jobs,
                         "count_machines": count_machines,
                         "mip_fo": mip_fo,
+                        "warm_start_value": warm_start_value,
                         "heuristic_fo": heuristic_fo,
                         "fo_diff": fo_diff,
                         "fo_diff_pct": fo_diff_pct,
