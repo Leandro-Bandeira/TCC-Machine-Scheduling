@@ -75,7 +75,18 @@ $$
 
 ---
 
-### **4.4. Não Sobreposição de Jobs e Tempos de Setup (Mesma Máquina)**
+### **4.4. Capacidade da Máquina por Slot (Clique de Execução)**
+Em qualquer slot de tempo $t$ e máquina $m$, no máximo um job pode estar em processamento simultaneamente. Um job $j$ está ativo no slot $t$ se iniciou em algum slot $s \in [t - p_j + 1, \, t]$:
+
+$$
+\sum_{j \in J} \sum_{s \in S_j \,:\, t - p_j + 1 \le s \le t} x_{j,s,m} \le 1 \quad \forall t \in S_{\text{machine}}, \forall m \in M
+$$
+
+> **Nota sobre a Relaxação Linear:** Embora a restrição 4.5 já impeça sobreposições em soluções inteiras, esta inequação de clique agrupa todos os jobs $j \in J$ e todo o intervalo ativo de execução na mesma soma, fortalecendo significativamente o limite inferior (*lower bound*) da relaxação linear (LP). Veja a explicação detalhada em [`models/machine_capacity_relaxation.md`](./machine_capacity_relaxation.md).
+
+---
+
+### **4.5. Não Sobreposição de Jobs e Tempos de Setup (Mesma Máquina)**
 Dada uma máquina $m$, dois jobs diferentes $i$ e $j$ não podem se sobrepor nem violar o tempo de setup $s_{ij}$. Se o job $i$ inicia no slot $s$ na máquina $m$, nenhum outro job $j$ pode iniciar dentro da janela de conflito $[s - p_j - s_{ji} + 1, s + p_i + s_{ij} - 1]$:
 
 $$
@@ -90,7 +101,7 @@ $$
 
 ---
 
-### **4.5. Restrição de Recursos Compartilhados (Entre Máquinas Distintas)**
+### **4.6. Restrição de Recursos Compartilhados (Entre Máquinas Distintas)**
 Se dois jobs $i$ e $j$ compartilham o mesmo recurso restrito e são processados em máquinas paralelas distintas ($m \ne m'$), deve-se respeitar o tempo de mudança/setup global $\Delta$ entre eles:
 
 $$

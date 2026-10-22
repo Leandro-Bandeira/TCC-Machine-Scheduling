@@ -23,6 +23,11 @@ if [ ! -f "$CONFIG" ]; then
   exit 1
 fi
 
+if [ "$USE_WARM_START" = true ]; then
+  echo ">>> Compilando heurística C++ (src/heuristics)..."
+  make -C src/heuristics
+fi
+
 TOTAL=$(python3 -c "
 import json
 d = json.load(open('$CONFIG'))
@@ -82,6 +87,34 @@ while IFS='|' read -r DT STATUSES MACHINES; do
   WARM_START_ARG=""
   if [ "$USE_WARM_START" = true ]; then
     WARM_START_ARG="--use-warm-start"
+    echo ""
+    echo ">>> [Warm Start] Executando heurística C++..."
+    while IFS='|' read -r INPUT_FILE MACHINE_ID MACHINE_NAME; do
+      echo "  [Heurística] $INPUT_FILE — $MACHINE_NAME (id=$MACHINE_ID)"
+      ./src/heuristics/heuristic "$INPUT_FILE" "$MACHINE_ID"
+    done < <(python3 -c "
+import json
+from pathlib import Path
+
+date_dir = Path('data/trusted/$DATE_SLUG')
+statuses = '$STATUSES'.split()
+machines_filter = set('$MACHINES'.split())
+
+if not statuses and date_dir.is_dir():
+    statuses = [p.name for p in sorted(date_dir.iterdir()) if p.is_dir() and (p / 'input.json').exists()]
+
+for st in statuses:
+    inp = date_dir / st / 'input.json'
+    if not inp.exists():
+        continue
+    data = json.loads(inp.read_text(encoding='utf-8'))
+    for m in data.get('machines', []):
+        m_id = m['machine_id']
+        m_name = m['machine_name']
+        if machines_filter and m_name not in machines_filter:
+            continue
+        print(f'{inp}|{m_id}|{m_name}')
+")
   fi
 
   echo ""

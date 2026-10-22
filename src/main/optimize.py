@@ -89,6 +89,20 @@ class TimeIndex:
     def _max_completion_time_rule(self, model, job: Job):
         return model.C_max >= model.C[job.id]
 
+    def _machine_capacity_rule(self, model, t: int, m: int):
+        active_vars = []
+        for job in self.jobs_data:
+            slots_j = self.time_slots_job[job.id]
+            lo = bisect_left(slots_j, t - job.processing_slots + 1)
+            hi = bisect_right(slots_j, t)
+            for s in slots_j[lo:hi]:
+                active_vars.append(model.x[job.id, s, m])
+
+        if not active_vars:
+            return pyo.Constraint.Skip
+
+        return sum(active_vars) <= 1
+
     def _setup_machine_rule(self, model, job_i: Job, job_j: Job, t: int, m: int):
         # Tempos de setup: i→j e j→i (0 se não houver)
         s_ij = self.setup_data.get(str(job_i.id), {}).get(str(job_j.id), 0)
@@ -326,6 +340,13 @@ class TimeIndex:
             for m in range(count_machines)
         ]
 
+        # Indexes para a restrição de capacidade por slot na máquina
+        capacity_indexes = [
+            (t, m)
+            for t in time_slots
+            for m in range(count_machines)
+        ]
+
         # Indexes para a restrição de setup dentro da máquina
         setup_indexes = [
             (job_i, job_j, t, m)
@@ -371,6 +392,12 @@ class TimeIndex:
         print(f"[completion_time] {perf_counter() - t0:.3f}s")
 
         t0 = perf_counter()
+        model.machine_capacity = pyo.Constraint(
+            capacity_indexes, rule=self._machine_capacity_rule
+        )
+        print(f"[machine_capacity] {perf_counter() - t0:.3f}s")
+
+        t0 = perf_counter()
         model.setup_machine = pyo.Constraint(
             setup_indexes, rule=self._setup_machine_rule
         )
@@ -404,8 +431,8 @@ class TimeIndex:
         solver = HiGHS()
         solver.config.load_solutions = False
         solver.config.raise_exception_on_nonoptimal_result = False
-        # solver.config.time_limit = 14400
-        solver.config.solver_options = {"simplex_scale_strategy": 4}
+        solver.config.time_limit = 3600
+        #solver.config.solver_options = {"simplex_scale_strategy": 4}
         _t0 = perf_counter()
         try:
             result = solver.solve(model, tee=True, warmstart=warmstart)

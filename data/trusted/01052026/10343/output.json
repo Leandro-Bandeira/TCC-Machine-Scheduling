@@ -2,79 +2,12 @@
   "machines_scheduling": [
     {
       "machine_id": 3,
-      "objective_function": 5744.680362116992,
-      "mip_gap": 1.4e-05,
-      "count_jobs_not_allocated": 2.0,
-      "solve_time_seconds": 209.408,
-      "termination_condition": "optimal",
-      "jobs": [
-        {
-          "job_id": 41,
-          "start": 146,
-          "end": 258,
-          "sub_machine": 1
-        },
-        {
-          "job_id": 43,
-          "start": 212,
-          "end": 258,
-          "sub_machine": 0
-        },
-        {
-          "job_id": 44,
-          "start": 165,
-          "end": 211,
-          "sub_machine": 0
-        },
-        {
-          "job_id": 45,
-          "start": 118,
-          "end": 164,
-          "sub_machine": 0
-        },
-        {
-          "job_id": 46,
-          "start": 71,
-          "end": 117,
-          "sub_machine": 0
-        },
-        {
-          "job_id": 47,
-          "start": 259,
-          "end": 305,
-          "sub_machine": 0
-        },
-        {
-          "job_id": 146,
-          "start": 259,
-          "end": 419,
-          "sub_machine": 1
-        },
-        {
-          "job_id": 152,
-          "start": 48,
-          "end": 144,
-          "sub_machine": 1
-        },
-        {
-          "job_id": 278,
-          "start": 48,
-          "end": 69,
-          "sub_machine": 0
-        },
-        {
-          "job_id": 42,
-          "start": -1,
-          "end": -1,
-          "sub_machine": -1
-        },
-        {
-          "job_id": 145,
-          "start": -1,
-          "end": -1,
-          "sub_machine": -1
-        }
-      ]
+      "objective_function": null,
+      "mip_gap": null,
+      "count_jobs_not_allocated": 11,
+      "solve_time_seconds": 4.551,
+      "termination_condition": "mem_limit",
+      "jobs": []
     }
   ]
 }
