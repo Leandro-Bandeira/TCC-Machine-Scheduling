@@ -3,9 +3,10 @@
     {
       "machine_id": 4,
       "objective_function": 0.8708025042686397,
+      "warm_start_value": 0.8708025042686397,
       "mip_gap": 5.4e-05,
       "count_jobs_not_allocated": 0.0,
-      "solve_time_seconds": 0.069,
+      "solve_time_seconds": 0.064,
       "termination_condition": "optimal",
       "jobs": [
         {
@@ -28,14 +29,14 @@
         },
         {
           "job_id": 23,
-          "start": 913,
-          "end": 913,
+          "start": 912,
+          "end": 912,
           "sub_machine": 0
         },
         {
           "job_id": 24,
-          "start": 912,
-          "end": 912,
+          "start": 913,
+          "end": 913,
           "sub_machine": 0
         }
       ]
