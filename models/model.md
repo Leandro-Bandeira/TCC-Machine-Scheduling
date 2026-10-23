@@ -9,7 +9,8 @@ Este documento detalha a formulação matemática do modelo **Time-Index** de Pr
 ### **Conjuntos**
 * $J$: Conjunto de jobs a serem agendados ($j \in J$).
 * $M$: Conjunto de máquinas paralelas ($m \in \{0, \dots, |M|-1\}$).
-* $S_j$: Conjunto de slots de tempo válidos para o início do job $j$ ($s \in S_j$), onde $s \ge \text{release\_date\_slot}_j$.
+* $\mathcal{T}$: Conjunto de todos os slots de tempo de início possíveis nos turnos de operação da máquina ($t \in \mathcal{T}$).
+* $S_j$: Conjunto de slots de tempo válidos para o início do job $j$ ($s \in S_j \subseteq \mathcal{T}$), onde $s \ge \text{release\_date\_slot}_j$.
 * $R$: Conjunto de recursos compartilhados atrelados aos jobs.
 
 ### **Parâmetros**
@@ -76,10 +77,10 @@ $$
 ---
 
 ### **4.4. Capacidade da Máquina por Slot (Clique de Execução)**
-Em qualquer slot de tempo $t$ e máquina $m$, no máximo um job pode estar em processamento simultaneamente. Um job $j$ está ativo no slot $t$ se iniciou em algum slot $s \in [t - p_j + 1, \, t]$:
+Em qualquer slot de tempo $t \in \mathcal{T}$ e máquina $m$, no máximo um job pode estar em processamento simultaneamente. Um job $j$ está ativo no slot $t$ se iniciou em algum slot $s \in [t - p_j + 1, \, t]$:
 
 $$
-\sum_{j \in J} \sum_{s \in S_j \,:\, t - p_j + 1 \le s \le t} x_{j,s,m} \le 1 \quad \forall t \in S_{\text{machine}}, \forall m \in M
+\sum_{j \in J} \sum_{s \in S_j \,:\, t - p_j + 1 \le s \le t} x_{j,s,m} \le 1 \quad \forall t \in \mathcal{T}, \forall m \in M
 $$
 
 > **Nota sobre a Relaxação Linear:** Embora a restrição 4.5 já impeça sobreposições em soluções inteiras, esta inequação de clique agrupa todos os jobs $j \in J$ e todo o intervalo ativo de execução na mesma soma, fortalecendo significativamente o limite inferior (*lower bound*) da relaxação linear (LP). Veja a explicação detalhada em [`models/machine_capacity_relaxation.md`](./machine_capacity_relaxation.md).
