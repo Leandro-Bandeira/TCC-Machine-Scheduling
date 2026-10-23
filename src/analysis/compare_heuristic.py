@@ -12,7 +12,7 @@ Para cada instância ativa listada em `run_config.json`:
   - Função Objetivo (FO MIP vs FO Heurística, com diferença absoluta e percentual).
   - Quantidade de jobs não alocados / penalizados (`unallocated`).
   - Tempo de execução em segundos (`mip_time_seconds` vs `heuristic_time_seconds`).
-  - Gap do MIP e dimensões do problema (`count_jobs`, `count_machines`).
+  - Gap do MIP, condição de término (`terminal_conditional_mip`) e dimensões do problema (`count_jobs`, `count_machines`).
 
 Gera o relatório consolidado em `data/heuristic_vs_mip.csv`.
 
@@ -48,6 +48,7 @@ FIELDNAMES = [
     "fo_diff",
     "fo_diff_pct",
     "mip_gap",
+    "terminal_conditional_mip",
     "mip_unallocated",
     "heuristic_unallocated",
     "mip_time_seconds",
@@ -200,6 +201,7 @@ def collect_comparisons(run_config: dict, skip_existing: bool = False) -> list[d
                 mip_fo = mach.get("objective_function")
                 warm_start_value = mach.get("warm_start_value")
                 mip_gap = mach.get("mip_gap")
+                terminal_conditional_mip = mach.get("termination_condition")
                 mip_time = mach.get("solve_time_seconds")
                 mip_unallocated = mach.get("count_jobs_not_allocated", 0)
 
@@ -251,6 +253,7 @@ def collect_comparisons(run_config: dict, skip_existing: bool = False) -> list[d
                         "fo_diff": fo_diff,
                         "fo_diff_pct": fo_diff_pct,
                         "mip_gap": mip_gap,
+                        "terminal_conditional_mip": terminal_conditional_mip,
                         "mip_unallocated": mip_unallocated,
                         "heuristic_unallocated": heuristic_unallocated,
                         "mip_time_seconds": mip_time,
