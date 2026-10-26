@@ -12,7 +12,7 @@ Para cada instância ativa listada em `run_config.json`:
   - Função Objetivo (FO MIP vs FO Heurística, com diferença absoluta e percentual).
   - Quantidade de jobs não alocados / penalizados (`unallocated`).
   - Tempo de execução em segundos (`mip_time_seconds` vs `heuristic_time_seconds`).
-  - Gap do MIP, condição de término (`terminal_conditional_mip`) e dimensões do problema (`count_jobs`, `count_machines`).
+  - Gap do MIP, condição de término (`terminal_conditional_mip`) e dimensões do problema (`count_jobs`, `count_machines`, `H`).
 
 Gera o relatório consolidado em `data/heuristic_vs_mip.csv`.
 
@@ -42,6 +42,7 @@ FIELDNAMES = [
     "machine_name",
     "count_jobs",
     "count_machines",
+    "H",
     "mip_fo",
     "warm_start_value",
     "heuristic_fo",
@@ -179,6 +180,10 @@ def collect_comparisons(run_config: dict, skip_existing: bool = False) -> list[d
             job_capacity_by_id = {
                 m["machine_id"]: m["job_capacity"] for m in input_data.get("machines", [])
             }
+            h_by_id = {
+                m["machine_id"]: (m["start_slots"][-1] if m.get("start_slots") else 0)
+                for m in input_data.get("machines", [])
+            }
 
             # jobs_per_machine só conta jobs ainda não processados (Status_Processed vazio)
             jobs_per_machine: dict[int, int] = {}
@@ -197,6 +202,7 @@ def collect_comparisons(run_config: dict, skip_existing: bool = False) -> list[d
 
                 count_jobs = jobs_per_machine.get(machine_id, 0)
                 count_machines = job_capacity_by_id.get(machine_id)
+                h_horizon = h_by_id.get(machine_id, 0)
 
                 mip_fo = mach.get("objective_function")
                 warm_start_value = mach.get("warm_start_value")
@@ -247,6 +253,7 @@ def collect_comparisons(run_config: dict, skip_existing: bool = False) -> list[d
                         "machine_name": machine_name,
                         "count_jobs": count_jobs,
                         "count_machines": count_machines,
+                        "H": h_horizon,
                         "mip_fo": mip_fo,
                         "warm_start_value": warm_start_value,
                         "heuristic_fo": heuristic_fo,
@@ -263,7 +270,7 @@ def collect_comparisons(run_config: dict, skip_existing: bool = False) -> list[d
                 )
                 print(
                     f"[{dt}/{status}] {machine_name} (id={machine_id})"
-                    f" | jobs={count_jobs} mach={count_machines}"
+                    f" | jobs={count_jobs} mach={count_machines} H={h_horizon}"
                     f" | fo: mip={mip_fo} (gap={mip_gap}) heur={heuristic_fo:.4f} diff={fo_diff:+.4f}"
                     f" | unallocated: mip={mip_unallocated} heur={heuristic_unallocated}"
                     f" | tempo: mip={mip_time}s heur={heuristic_time:.3f}s"
