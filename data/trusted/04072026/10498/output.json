@@ -6,20 +6,20 @@
       "warm_start_value": 70655.3175288373,
       "mip_gap": 4e-06,
       "count_jobs_not_allocated": 5.0,
-      "solve_time_seconds": 3.005,
+      "solve_time_seconds": 2.412,
       "termination_condition": "optimal",
       "jobs": [
         {
           "job_id": 0,
           "start": 938,
           "end": 989,
-          "sub_machine": 1
+          "sub_machine": 0
         },
         {
           "job_id": 1,
           "start": 912,
           "end": 937,
-          "sub_machine": 1
+          "sub_machine": 0
         },
         {
           "job_id": 10,
@@ -31,13 +31,13 @@
           "job_id": 14,
           "start": 918,
           "end": 1010,
-          "sub_machine": 0
+          "sub_machine": 1
         },
         {
           "job_id": 22,
           "start": 912,
           "end": 916,
-          "sub_machine": 0
+          "sub_machine": 1
         },
         {
           "job_id": 15,
@@ -77,26 +77,26 @@
       "warm_start_value": 69788.53802946066,
       "mip_gap": 6e-06,
       "count_jobs_not_allocated": 4.0,
-      "solve_time_seconds": 33.645,
+      "solve_time_seconds": 26.986,
       "termination_condition": "optimal",
       "jobs": [
         {
           "job_id": 2,
           "start": 1200,
           "end": 1236,
-          "sub_machine": 8
+          "sub_machine": 5
         },
         {
           "job_id": 3,
           "start": 1200,
           "end": 1236,
-          "sub_machine": 0
+          "sub_machine": 1
         },
         {
           "job_id": 4,
           "start": 1200,
           "end": 1236,
-          "sub_machine": 9
+          "sub_machine": 2
         },
         {
           "job_id": 6,
@@ -108,13 +108,13 @@
           "job_id": 7,
           "start": 1200,
           "end": 1236,
-          "sub_machine": 4
+          "sub_machine": 3
         },
         {
           "job_id": 8,
           "start": 1200,
           "end": 1236,
-          "sub_machine": 3
+          "sub_machine": 0
         },
         {
           "job_id": 11,
@@ -166,7 +166,7 @@
       "warm_start_value": 25437.395565514802,
       "mip_gap": 1.1e-05,
       "count_jobs_not_allocated": 3.0,
-      "solve_time_seconds": 0.065,
+      "solve_time_seconds": 0.061,
       "termination_condition": "optimal",
       "jobs": [
         {
