@@ -29,8 +29,10 @@ Solution ILS::construction(){
     const std::vector<Job>& jobs = this->problem_data.getJobs();
     const int count_machines = this->problem_data.getCountMachines();
 
-    // Inicializa count_machines rotas reais + 1 rota para o pool virtual de não-alocados
-    solution.routes.resize(count_machines + 1);
+    // Para mais de uma máquina real, mantém count_machines + 1 rotas (incluindo o pool virtual);
+    // para uma única máquina real, usa apenas 1 rota (sem pool virtual).
+    int num_routes = (count_machines > 1) ? (count_machines + 1) : count_machines;
+    solution.routes.resize(num_routes);
     solution.initEvalBuffers(this->problem_data.getNumResources(), count_machines);
 
     // Lista de candidatos global (todos os jobs reais, excluindo o dummy)
