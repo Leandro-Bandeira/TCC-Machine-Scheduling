@@ -376,10 +376,12 @@ def cleanup_all_outputs(
     latest_dir: Path = LATEST_DIR,
 ) -> None:
     """
-    Remove todos os arquivos `output.json` de `data/trusted/` e limpa `data/latest/`.
+    Remove todos os arquivos `.json` de `data/trusted/` (`input.json`, `output.json`,
+    `output_heuristic.json`, etc.) e limpa `data/latest/`.
 
     Essa limpeza é disparada quando `SKIP_EXISTING_OUTPUT = False`, garantindo
-    que nenhuma execução anterior interfira no novo ciclo do pipeline.
+    que nenhuma execução anterior interfira no novo ciclo do pipeline. Os
+    `input.json` são regerados em seguida por `data_input_process.py`.
 
     Args:
         trusted_dir: Diretório raiz de `data/trusted/`.
@@ -388,7 +390,7 @@ def cleanup_all_outputs(
     import shutil
 
     deleted_outputs = 0
-    for output_file in sorted(trusted_dir.rglob("output.json")):
+    for output_file in sorted(trusted_dir.rglob("*.json")):
         output_file.unlink()
         deleted_outputs += 1
         print(f"  [cleanup] removido {output_file.relative_to(BASE_DIR)}")
@@ -402,7 +404,7 @@ def cleanup_all_outputs(
                 print(f"  [cleanup] removido latest/{status_dir.name}/")
 
     print(
-        f"\n[cleanup] {deleted_outputs} output.json removidos"
+        f"\n[cleanup] {deleted_outputs} arquivos .json removidos"
         f" | {deleted_latest} latest/ removidos"
     )
 
