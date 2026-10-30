@@ -14,9 +14,9 @@
                     "sub_machine": 0
                 },
                 {
-                    "due_date_slot": 287,
+                    "due_date_slot": 864,
                     "end": 118,
-                    "job_id": 42,
+                    "job_id": 46,
                     "processing_slots": 47,
                     "release_date_slot": 0,
                     "resource_id": 1,
@@ -24,9 +24,9 @@
                     "sub_machine": 0
                 },
                 {
-                    "due_date_slot": 864,
+                    "due_date_slot": 287,
                     "end": 165,
-                    "job_id": 46,
+                    "job_id": 42,
                     "processing_slots": 47,
                     "release_date_slot": 0,
                     "resource_id": 1,
@@ -71,17 +71,7 @@
                     "release_date_slot": 0,
                     "resource_id": 0,
                     "start": -1,
-                    "sub_machine": 0
-                },
-                {
-                    "due_date_slot": 864,
-                    "end": -1,
-                    "job_id": 44,
-                    "processing_slots": 47,
-                    "release_date_slot": 0,
-                    "resource_id": 1,
-                    "start": -1,
-                    "sub_machine": 0
+                    "sub_machine": -1
                 },
                 {
                     "due_date_slot": 864,
@@ -112,11 +102,21 @@
                     "resource_id": 0,
                     "start": 259,
                     "sub_machine": 1
+                },
+                {
+                    "due_date_slot": 864,
+                    "end": -1,
+                    "job_id": 44,
+                    "processing_slots": 47,
+                    "release_date_slot": 0,
+                    "resource_id": 1,
+                    "start": -1,
+                    "sub_machine": -1
                 }
             ],
             "machine_id": 3,
             "objective_function": 5744.680362116992,
-            "solve_time_seconds": 0.010509196
+            "solve_time_seconds": 0.005750894
         }
     ]
 }
