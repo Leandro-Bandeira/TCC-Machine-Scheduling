@@ -6,7 +6,7 @@
       "warm_start_value": 0.1946564885496183,
       "mip_gap": 0.0,
       "count_jobs_not_allocated": 0.0,
-      "solve_time_seconds": 0.003,
+      "solve_time_seconds": 0.005,
       "termination_condition": "optimal",
       "jobs": [
         {
@@ -23,31 +23,31 @@
       "warm_start_value": 0.6861244019138756,
       "mip_gap": 0.0,
       "count_jobs_not_allocated": 0.0,
-      "solve_time_seconds": 0.068,
+      "solve_time_seconds": 0.129,
       "termination_condition": "optimal",
       "jobs": [
         {
           "job_id": 38,
-          "start": 186,
-          "end": 197,
-          "sub_machine": 0
-        },
-        {
-          "job_id": 39,
           "start": 172,
           "end": 183,
           "sub_machine": 0
         },
         {
+          "job_id": 39,
+          "start": 186,
+          "end": 197,
+          "sub_machine": 0
+        },
+        {
           "job_id": 245,
-          "start": 162,
-          "end": 164,
+          "start": 167,
+          "end": 169,
           "sub_machine": 0
         },
         {
           "job_id": 246,
-          "start": 167,
-          "end": 169,
+          "start": 162,
+          "end": 164,
           "sub_machine": 0
         }
       ]
@@ -55,41 +55,41 @@
     {
       "machine_id": 2,
       "objective_function": 0.48370136698212407,
-      "warm_start_value": 0.48370136698212407,
+      "warm_start_value": 0.483701366982124,
       "mip_gap": 0.0,
       "count_jobs_not_allocated": 0.0,
-      "solve_time_seconds": 4.673,
+      "solve_time_seconds": 6.199,
       "termination_condition": "optimal",
       "jobs": [
         {
           "job_id": 88,
           "start": 48,
           "end": 106,
-          "sub_machine": 9
+          "sub_machine": 3
         },
         {
           "job_id": 89,
           "start": 48,
           "end": 106,
-          "sub_machine": 0
+          "sub_machine": 4
         },
         {
           "job_id": 308,
           "start": 48,
           "end": 83,
-          "sub_machine": 5
+          "sub_machine": 1
         },
         {
           "job_id": 309,
           "start": 48,
           "end": 65,
-          "sub_machine": 2
+          "sub_machine": 0
         },
         {
           "job_id": 320,
           "start": 48,
           "end": 95,
-          "sub_machine": 1
+          "sub_machine": 5
         }
       ]
     },
@@ -99,19 +99,19 @@
       "warm_start_value": 0.5301627832748165,
       "mip_gap": 0.0,
       "count_jobs_not_allocated": 0.0,
-      "solve_time_seconds": 38.421,
+      "solve_time_seconds": 63.707,
       "termination_condition": "optimal",
       "jobs": [
         {
           "job_id": 33,
-          "start": 64,
-          "end": 89,
+          "start": 91,
+          "end": 116,
           "sub_machine": 1
         },
         {
           "job_id": 34,
-          "start": 91,
-          "end": 116,
+          "start": 64,
+          "end": 89,
           "sub_machine": 1
         },
         {
@@ -140,14 +140,14 @@
         },
         {
           "job_id": 167,
-          "start": 105,
-          "end": 139,
+          "start": 70,
+          "end": 104,
           "sub_machine": 0
         },
         {
           "job_id": 168,
-          "start": 175,
-          "end": 209,
+          "start": 140,
+          "end": 174,
           "sub_machine": 0
         },
         {
@@ -158,14 +158,14 @@
         },
         {
           "job_id": 206,
-          "start": 140,
-          "end": 174,
+          "start": 105,
+          "end": 139,
           "sub_machine": 0
         },
         {
           "job_id": 207,
-          "start": 70,
-          "end": 104,
+          "start": 175,
+          "end": 209,
           "sub_machine": 0
         },
         {
@@ -182,7 +182,7 @@
       "warm_start_value": 0.2782152230971129,
       "mip_gap": 0.0,
       "count_jobs_not_allocated": 0.0,
-      "solve_time_seconds": 0.016,
+      "solve_time_seconds": 0.015,
       "termination_condition": "optimal",
       "jobs": [
         {

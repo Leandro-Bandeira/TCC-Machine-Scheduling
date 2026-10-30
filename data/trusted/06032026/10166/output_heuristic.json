@@ -5,28 +5,28 @@
             "jobs": [
                 {
                     "due_date_slot": 1152,
-                    "end": 61,
-                    "job_id": 33,
-                    "processing_slots": 13,
-                    "release_date_slot": 0,
-                    "resource_id": 0,
-                    "start": 48,
-                    "sub_machine": 0
-                },
-                {
-                    "due_date_slot": 1152,
                     "end": 70,
                     "job_id": 52,
                     "processing_slots": 22,
                     "release_date_slot": 0,
                     "resource_id": 1,
                     "start": 48,
+                    "sub_machine": 0
+                },
+                {
+                    "due_date_slot": 1152,
+                    "end": 61,
+                    "job_id": 33,
+                    "processing_slots": 13,
+                    "release_date_slot": 0,
+                    "resource_id": 0,
+                    "start": 48,
                     "sub_machine": 1
                 }
             ],
             "machine_id": 3,
             "objective_function": 0.25047801147227533,
-            "solve_time_seconds": 0.000229951
+            "solve_time_seconds": 0.000274325
         },
         {
             "count_jobs_not_allocated": 0,
@@ -112,9 +112,9 @@
                     "sub_machine": 0
                 },
                 {
-                    "due_date_slot": 1152,
+                    "due_date_slot": 864,
                     "end": 95,
-                    "job_id": 20,
+                    "job_id": 18,
                     "processing_slots": 5,
                     "release_date_slot": 0,
                     "resource_id": 0,
@@ -122,9 +122,9 @@
                     "sub_machine": 0
                 },
                 {
-                    "due_date_slot": 864,
+                    "due_date_slot": 1152,
                     "end": 100,
-                    "job_id": 18,
+                    "job_id": 20,
                     "processing_slots": 5,
                     "release_date_slot": 0,
                     "resource_id": 0,
@@ -154,7 +154,7 @@
             ],
             "machine_id": 5,
             "objective_function": 0.4331433581762385,
-            "solve_time_seconds": 0.002360353
+            "solve_time_seconds": 0.003600782
         }
     ]
 }

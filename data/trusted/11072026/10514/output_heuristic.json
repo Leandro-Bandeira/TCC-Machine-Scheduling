@@ -14,6 +14,16 @@
                     "sub_machine": 0
                 },
                 {
+                    "due_date_slot": 1728,
+                    "end": -1,
+                    "job_id": 1,
+                    "processing_slots": 139,
+                    "release_date_slot": 1440,
+                    "resource_id": 1,
+                    "start": -1,
+                    "sub_machine": 0
+                },
+                {
                     "due_date_slot": 1152,
                     "end": 917,
                     "job_id": 5,
@@ -26,40 +36,10 @@
                 {
                     "due_date_slot": 1728,
                     "end": -1,
-                    "job_id": 0,
-                    "processing_slots": 59,
-                    "release_date_slot": 1440,
-                    "resource_id": 0,
-                    "start": -1,
-                    "sub_machine": 0
-                },
-                {
-                    "due_date_slot": 2592,
-                    "end": -1,
-                    "job_id": 21,
+                    "job_id": 45,
                     "processing_slots": 40,
-                    "release_date_slot": 1728,
-                    "resource_id": 9,
-                    "start": -1,
-                    "sub_machine": 0
-                },
-                {
-                    "due_date_slot": 1728,
-                    "end": -1,
-                    "job_id": 1,
-                    "processing_slots": 139,
                     "release_date_slot": 1440,
-                    "resource_id": 1,
-                    "start": -1,
-                    "sub_machine": 0
-                },
-                {
-                    "due_date_slot": 2592,
-                    "end": -1,
-                    "job_id": 7,
-                    "processing_slots": 9,
-                    "release_date_slot": 1728,
-                    "resource_id": 6,
+                    "resource_id": 10,
                     "start": -1,
                     "sub_machine": 0
                 },
@@ -94,16 +74,6 @@
                     "sub_machine": 1
                 },
                 {
-                    "due_date_slot": 1728,
-                    "end": -1,
-                    "job_id": 45,
-                    "processing_slots": 40,
-                    "release_date_slot": 1440,
-                    "resource_id": 10,
-                    "start": -1,
-                    "sub_machine": 1
-                },
-                {
                     "due_date_slot": 1440,
                     "end": 1222,
                     "job_id": 10,
@@ -112,32 +82,62 @@
                     "resource_id": 8,
                     "start": 1200,
                     "sub_machine": 1
-                }
-            ],
-            "machine_id": 0,
-            "objective_function": 77720.34045290787,
-            "solve_time_seconds": 0.003654031
-        },
-        {
-            "count_jobs_not_allocated": 9,
-            "jobs": [
+                },
                 {
                     "due_date_slot": 1728,
                     "end": -1,
-                    "job_id": 46,
-                    "processing_slots": 4,
+                    "job_id": 0,
+                    "processing_slots": 59,
                     "release_date_slot": 1440,
-                    "resource_id": 10,
+                    "resource_id": 0,
                     "start": -1,
                     "sub_machine": 1
                 },
                 {
                     "due_date_slot": 2592,
                     "end": -1,
-                    "job_id": 23,
-                    "processing_slots": 73,
+                    "job_id": 7,
+                    "processing_slots": 9,
                     "release_date_slot": 1728,
-                    "resource_id": 3,
+                    "resource_id": 6,
+                    "start": -1,
+                    "sub_machine": 1
+                },
+                {
+                    "due_date_slot": 2592,
+                    "end": -1,
+                    "job_id": 21,
+                    "processing_slots": 40,
+                    "release_date_slot": 1728,
+                    "resource_id": 9,
+                    "start": -1,
+                    "sub_machine": 1
+                }
+            ],
+            "machine_id": 0,
+            "objective_function": 77720.34045290787,
+            "solve_time_seconds": 0.006538166
+        },
+        {
+            "count_jobs_not_allocated": 9,
+            "jobs": [
+                {
+                    "due_date_slot": 1440,
+                    "end": 1216,
+                    "job_id": 8,
+                    "processing_slots": 16,
+                    "release_date_slot": 1152,
+                    "resource_id": 1,
+                    "start": 1200,
+                    "sub_machine": 1
+                },
+                {
+                    "due_date_slot": 1728,
+                    "end": -1,
+                    "job_id": 25,
+                    "processing_slots": 10,
+                    "release_date_slot": 1440,
+                    "resource_id": 5,
                     "start": -1,
                     "sub_machine": 2
                 },
@@ -154,22 +154,12 @@
                 {
                     "due_date_slot": 2592,
                     "end": -1,
-                    "job_id": 42,
-                    "processing_slots": 25,
+                    "job_id": 23,
+                    "processing_slots": 73,
                     "release_date_slot": 1728,
-                    "resource_id": 8,
+                    "resource_id": 3,
                     "start": -1,
-                    "sub_machine": 4
-                },
-                {
-                    "due_date_slot": 1152,
-                    "end": 916,
-                    "job_id": 6,
-                    "processing_slots": 4,
-                    "release_date_slot": 864,
-                    "resource_id": 0,
-                    "start": 912,
-                    "sub_machine": 5
+                    "sub_machine": 3
                 },
                 {
                     "due_date_slot": 2592,
@@ -182,36 +172,6 @@
                     "sub_machine": 5
                 },
                 {
-                    "due_date_slot": 1440,
-                    "end": 1216,
-                    "job_id": 8,
-                    "processing_slots": 16,
-                    "release_date_slot": 1152,
-                    "resource_id": 1,
-                    "start": 1200,
-                    "sub_machine": 5
-                },
-                {
-                    "due_date_slot": 2592,
-                    "end": -1,
-                    "job_id": 43,
-                    "processing_slots": 25,
-                    "release_date_slot": 1728,
-                    "resource_id": 9,
-                    "start": -1,
-                    "sub_machine": 6
-                },
-                {
-                    "due_date_slot": 1728,
-                    "end": -1,
-                    "job_id": 25,
-                    "processing_slots": 10,
-                    "release_date_slot": 1440,
-                    "resource_id": 5,
-                    "start": -1,
-                    "sub_machine": 7
-                },
-                {
                     "due_date_slot": 2592,
                     "end": -1,
                     "job_id": 41,
@@ -222,6 +182,26 @@
                     "sub_machine": 7
                 },
                 {
+                    "due_date_slot": 1152,
+                    "end": 916,
+                    "job_id": 6,
+                    "processing_slots": 4,
+                    "release_date_slot": 864,
+                    "resource_id": 0,
+                    "start": 912,
+                    "sub_machine": 7
+                },
+                {
+                    "due_date_slot": 1728,
+                    "end": -1,
+                    "job_id": 46,
+                    "processing_slots": 4,
+                    "release_date_slot": 1440,
+                    "resource_id": 10,
+                    "start": -1,
+                    "sub_machine": 9
+                },
+                {
                     "due_date_slot": 2592,
                     "end": -1,
                     "job_id": 22,
@@ -230,45 +210,35 @@
                     "resource_id": 2,
                     "start": -1,
                     "sub_machine": 9
-                }
-            ],
-            "machine_id": 1,
-            "objective_function": 132867.14441509178,
-            "solve_time_seconds": 0.002535353
-        },
-        {
-            "count_jobs_not_allocated": 6,
-            "jobs": [
-                {
-                    "due_date_slot": 1728,
-                    "end": -1,
-                    "job_id": 18,
-                    "processing_slots": 5,
-                    "release_date_slot": 1440,
-                    "resource_id": 2,
-                    "start": -1,
-                    "sub_machine": 0
-                },
-                {
-                    "due_date_slot": 1728,
-                    "end": -1,
-                    "job_id": 47,
-                    "processing_slots": 3,
-                    "release_date_slot": 1440,
-                    "resource_id": 3,
-                    "start": -1,
-                    "sub_machine": 0
                 },
                 {
                     "due_date_slot": 2592,
                     "end": -1,
-                    "job_id": 19,
-                    "processing_slots": 5,
+                    "job_id": 43,
+                    "processing_slots": 25,
                     "release_date_slot": 1728,
-                    "resource_id": 2,
+                    "resource_id": 9,
                     "start": -1,
-                    "sub_machine": 0
+                    "sub_machine": 9
                 },
+                {
+                    "due_date_slot": 2592,
+                    "end": -1,
+                    "job_id": 42,
+                    "processing_slots": 25,
+                    "release_date_slot": 1728,
+                    "resource_id": 8,
+                    "start": -1,
+                    "sub_machine": 9
+                }
+            ],
+            "machine_id": 1,
+            "objective_function": 132867.14441509178,
+            "solve_time_seconds": 0.004935811
+        },
+        {
+            "count_jobs_not_allocated": 6,
+            "jobs": [
                 {
                     "due_date_slot": 287,
                     "end": 50,
@@ -277,6 +247,36 @@
                     "release_date_slot": 0,
                     "resource_id": 1,
                     "start": 48,
+                    "sub_machine": 0
+                },
+                {
+                    "due_date_slot": 1152,
+                    "end": 917,
+                    "job_id": 11,
+                    "processing_slots": 5,
+                    "release_date_slot": 864,
+                    "resource_id": 0,
+                    "start": 912,
+                    "sub_machine": 0
+                },
+                {
+                    "due_date_slot": 1440,
+                    "end": 1205,
+                    "job_id": 17,
+                    "processing_slots": 5,
+                    "release_date_slot": 1152,
+                    "resource_id": 2,
+                    "start": 1200,
+                    "sub_machine": 0
+                },
+                {
+                    "due_date_slot": 1728,
+                    "end": -1,
+                    "job_id": 18,
+                    "processing_slots": 5,
+                    "release_date_slot": 1440,
+                    "resource_id": 2,
+                    "start": -1,
                     "sub_machine": 0
                 },
                 {
@@ -310,29 +310,29 @@
                     "sub_machine": 0
                 },
                 {
-                    "due_date_slot": 1152,
-                    "end": 917,
-                    "job_id": 11,
-                    "processing_slots": 5,
-                    "release_date_slot": 864,
-                    "resource_id": 0,
-                    "start": 912,
+                    "due_date_slot": 1728,
+                    "end": -1,
+                    "job_id": 47,
+                    "processing_slots": 3,
+                    "release_date_slot": 1440,
+                    "resource_id": 3,
+                    "start": -1,
                     "sub_machine": 0
                 },
                 {
-                    "due_date_slot": 1440,
-                    "end": 1205,
-                    "job_id": 17,
+                    "due_date_slot": 2592,
+                    "end": -1,
+                    "job_id": 19,
                     "processing_slots": 5,
-                    "release_date_slot": 1152,
+                    "release_date_slot": 1728,
                     "resource_id": 2,
-                    "start": 1200,
+                    "start": -1,
                     "sub_machine": 0
                 }
             ],
             "machine_id": 3,
             "objective_function": 76308.17078156942,
-            "solve_time_seconds": 0.0007041
+            "solve_time_seconds": 0.001136571
         },
         {
             "count_jobs_not_allocated": 2,
@@ -340,21 +340,21 @@
                 {
                     "due_date_slot": 1440,
                     "end": 1330,
-                    "job_id": 29,
-                    "processing_slots": 16,
-                    "release_date_slot": 1152,
-                    "resource_id": 0,
-                    "start": 1314,
-                    "sub_machine": 0
-                },
-                {
-                    "due_date_slot": 1440,
-                    "end": 1348,
                     "job_id": 30,
                     "processing_slots": 16,
                     "release_date_slot": 1152,
                     "resource_id": 1,
-                    "start": 1332,
+                    "start": 1314,
+                    "sub_machine": 0
+                },
+                {
+                    "due_date_slot": 2592,
+                    "end": -1,
+                    "job_id": 36,
+                    "processing_slots": 16,
+                    "release_date_slot": 1728,
+                    "resource_id": 1,
+                    "start": -1,
                     "sub_machine": 0
                 },
                 {
@@ -368,31 +368,41 @@
                     "sub_machine": 0
                 },
                 {
-                    "due_date_slot": 2592,
-                    "end": -1,
-                    "job_id": 36,
+                    "due_date_slot": 1440,
+                    "end": 1348,
+                    "job_id": 29,
                     "processing_slots": 16,
-                    "release_date_slot": 1728,
-                    "resource_id": 1,
-                    "start": -1,
+                    "release_date_slot": 1152,
+                    "resource_id": 0,
+                    "start": 1332,
                     "sub_machine": 0
                 }
             ],
             "machine_id": 4,
             "objective_function": 11306.473730762427,
-            "solve_time_seconds": 0.000222277
+            "solve_time_seconds": 0.000285405
         },
         {
             "count_jobs_not_allocated": 10,
             "jobs": [
                 {
-                    "due_date_slot": 1728,
-                    "end": -1,
-                    "job_id": 12,
+                    "due_date_slot": 1440,
+                    "end": 1201,
+                    "job_id": 32,
                     "processing_slots": 1,
-                    "release_date_slot": 1440,
-                    "resource_id": 0,
-                    "start": -1,
+                    "release_date_slot": 1152,
+                    "resource_id": 6,
+                    "start": 1200,
+                    "sub_machine": 0
+                },
+                {
+                    "due_date_slot": 1440,
+                    "end": 1204,
+                    "job_id": 34,
+                    "processing_slots": 1,
+                    "release_date_slot": 1152,
+                    "resource_id": 4,
+                    "start": 1203,
                     "sub_machine": 0
                 },
                 {
@@ -406,33 +416,13 @@
                     "sub_machine": 0
                 },
                 {
-                    "due_date_slot": 1440,
-                    "end": 1201,
-                    "job_id": 34,
-                    "processing_slots": 1,
-                    "release_date_slot": 1152,
-                    "resource_id": 4,
-                    "start": 1200,
-                    "sub_machine": 0
-                },
-                {
-                    "due_date_slot": 2592,
+                    "due_date_slot": 1728,
                     "end": -1,
-                    "job_id": 14,
+                    "job_id": 26,
                     "processing_slots": 1,
-                    "release_date_slot": 1728,
-                    "resource_id": 0,
+                    "release_date_slot": 1440,
+                    "resource_id": 2,
                     "start": -1,
-                    "sub_machine": 0
-                },
-                {
-                    "due_date_slot": 1440,
-                    "end": 1204,
-                    "job_id": 32,
-                    "processing_slots": 1,
-                    "release_date_slot": 1152,
-                    "resource_id": 6,
-                    "start": 1203,
                     "sub_machine": 0
                 },
                 {
@@ -456,16 +446,6 @@
                     "sub_machine": 0
                 },
                 {
-                    "due_date_slot": 1728,
-                    "end": -1,
-                    "job_id": 28,
-                    "processing_slots": 2,
-                    "release_date_slot": 1440,
-                    "resource_id": 4,
-                    "start": -1,
-                    "sub_machine": 0
-                },
-                {
                     "due_date_slot": 1440,
                     "end": 1208,
                     "job_id": 31,
@@ -478,10 +458,20 @@
                 {
                     "due_date_slot": 1728,
                     "end": -1,
-                    "job_id": 26,
+                    "job_id": 12,
                     "processing_slots": 1,
                     "release_date_slot": 1440,
-                    "resource_id": 2,
+                    "resource_id": 0,
+                    "start": -1,
+                    "sub_machine": 0
+                },
+                {
+                    "due_date_slot": 1728,
+                    "end": -1,
+                    "job_id": 28,
+                    "processing_slots": 2,
+                    "release_date_slot": 1440,
+                    "resource_id": 4,
                     "start": -1,
                     "sub_machine": 0
                 },
@@ -498,10 +488,10 @@
                 {
                     "due_date_slot": 2592,
                     "end": -1,
-                    "job_id": 38,
+                    "job_id": 14,
                     "processing_slots": 1,
                     "release_date_slot": 1728,
-                    "resource_id": 6,
+                    "resource_id": 0,
                     "start": -1,
                     "sub_machine": 0
                 },
@@ -514,11 +504,21 @@
                     "resource_id": 4,
                     "start": -1,
                     "sub_machine": 0
+                },
+                {
+                    "due_date_slot": 2592,
+                    "end": -1,
+                    "job_id": 38,
+                    "processing_slots": 1,
+                    "release_date_slot": 1728,
+                    "resource_id": 6,
+                    "start": -1,
+                    "sub_machine": 0
                 }
             ],
             "machine_id": 5,
             "objective_function": 174470.20708431248,
-            "solve_time_seconds": 0.001982346
+            "solve_time_seconds": 0.003317348
         }
     ]
 }

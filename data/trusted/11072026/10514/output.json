@@ -6,7 +6,7 @@
       "warm_start_value": 77720.34045290787,
       "mip_gap": 2e-06,
       "count_jobs_not_allocated": 5.0,
-      "solve_time_seconds": 1.406,
+      "solve_time_seconds": 2.264,
       "termination_condition": "optimal",
       "jobs": [
         {
@@ -83,7 +83,7 @@
       "warm_start_value": 132867.14441509178,
       "mip_gap": 0.0,
       "count_jobs_not_allocated": 9.0,
-      "solve_time_seconds": 0.222,
+      "solve_time_seconds": 0.4,
       "termination_condition": "optimal",
       "jobs": [
         {
@@ -160,7 +160,7 @@
       "warm_start_value": 76308.17078156942,
       "mip_gap": 0.0,
       "count_jobs_not_allocated": 6.0,
-      "solve_time_seconds": 0.045,
+      "solve_time_seconds": 0.081,
       "termination_condition": "optimal",
       "jobs": [
         {
@@ -225,19 +225,19 @@
       "warm_start_value": 11306.473730762427,
       "mip_gap": 4.2e-05,
       "count_jobs_not_allocated": 2.0,
-      "solve_time_seconds": 0.02,
+      "solve_time_seconds": 0.039,
       "termination_condition": "optimal",
       "jobs": [
         {
           "job_id": 29,
-          "start": 1314,
-          "end": 1329,
+          "start": 1332,
+          "end": 1347,
           "sub_machine": 0
         },
         {
           "job_id": 30,
-          "start": 1332,
-          "end": 1347,
+          "start": 1314,
+          "end": 1329,
           "sub_machine": 0
         },
         {
@@ -260,7 +260,7 @@
       "warm_start_value": 174470.20708431248,
       "mip_gap": 1e-06,
       "count_jobs_not_allocated": 10.0,
-      "solve_time_seconds": 0.023,
+      "solve_time_seconds": 0.041,
       "termination_condition": "optimal",
       "jobs": [
         {
@@ -271,14 +271,14 @@
         },
         {
           "job_id": 32,
-          "start": 1203,
-          "end": 1203,
+          "start": 1200,
+          "end": 1200,
           "sub_machine": 0
         },
         {
           "job_id": 34,
-          "start": 1200,
-          "end": 1200,
+          "start": 1203,
+          "end": 1203,
           "sub_machine": 0
         },
         {
