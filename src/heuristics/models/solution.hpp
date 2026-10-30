@@ -70,9 +70,9 @@ struct Solution{
     // alguma rota está suja (commit de um movimento aceito, perturbação, construção).
     std::vector<std::vector<ResourceInterval>> resource_intervals;
 
-    // total_violations: nº de pares de máquinas (k1, k2) que violam a restrição de
-    // recurso, somado sobre os recursos (cada par conta uma vez por recurso).
-    // pair_viol[k1 * M + k2]: em quantos recursos o par (k1, k2) viola (simétrica).
+    // total_violations: nº total de violações da restrição de recurso entre
+    // pares de máquinas (k1, k2), somado sobre todos os recursos e intervalos.
+    // pair_viol[k1 * M + k2]: nº de violações entre o par (k1, k2) (simétrica).
     // row_viol[k]: soma da linha k de pair_viol, ou seja, violações que envolvem k.
     int total_violations = 0;
     std::vector<int> pair_viol;
@@ -84,14 +84,8 @@ struct Solution{
     TrialIntervals trial1;
     TrialIntervals trial2;
 
-    // Scratch do sweep: last_end[k] = maior fim já visto da máquina k no recurso
-    // corrente; mark_m/mark_l/pair_mark com carimbo evitam contar a mesma máquina
-    // (ou o mesmo par) duas vezes no mesmo recurso, sem precisar zerar os vetores.
+    // Scratch do sweep: last_end[k] = maior fim já visto da máquina k no recurso corrente.
     std::vector<int> last_end;
-    std::vector<uint64_t> mark_m;
-    std::vector<uint64_t> mark_l;
-    std::vector<uint64_t> pair_mark;
-    uint64_t stamp = 0;
 
     // Marca a rota route_idx como suja: próxima chamada de evaluate() recalcula
     // essa rota do zero em vez de reaproveitar o cache. Precisa ser chamado em
@@ -120,10 +114,6 @@ struct Solution{
             trial1.init(num_resources);
             trial2.init(num_resources);
             last_end.assign(count_machines, INT_MIN);
-            mark_m.assign(count_machines, 0);
-            mark_l.assign(count_machines, 0);
-            pair_mark.assign((size_t)count_machines * count_machines, 0);
-            stamp = 0;
         }
     }
 };

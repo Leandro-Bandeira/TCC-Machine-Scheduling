@@ -82,8 +82,7 @@ static double computeRoute(std::vector<Job>& route, const ProblemData& problem_d
 // Para cada recurso: ordena os intervalos por (s, k, e) e varre em ordem de
 // início mantendo last_end[k] (maior fim já visto da máquina k). Ao chegar um
 // intervalo de início s da máquina k, toda outra máquina j com last_end[j] > s
-// ainda está ocupando o recurso, ou seja, o par (k, j) viola. O carimbo
-// pair_mark garante que cada par conte uma única vez por recurso.
+// ainda está ocupando o recurso, contabilizando uma violação para o par (k, j).
 static void rebuildResourceIntervals(Solution& sol, const ProblemData& problem_data) {
     const int M = problem_data.getCountMachines();
     const int H = problem_data.getH();
@@ -109,14 +108,11 @@ static void rebuildResourceIntervals(Solution& sol, const ProblemData& problem_d
             return a.e < b.e;
         });
 
-        sol.stamp++;
         std::fill(sol.last_end.begin(), sol.last_end.end(), INT_MIN);
         for (const ResourceInterval& x : g) {
             for (int j = 0; j < M; j++) {
                 if (j == x.k || sol.last_end[j] <= x.s) continue;
                 size_t a = (size_t)x.k * M + j, b = (size_t)j * M + x.k;
-                if (sol.pair_mark[a] == sol.stamp) continue;
-                sol.pair_mark[a] = sol.pair_mark[b] = sol.stamp;
                 sol.pair_viol[a]++;
                 sol.pair_viol[b]++;
                 sol.row_viol[x.k]++;
@@ -135,15 +131,14 @@ static void rebuildResourceIntervals(Solution& sol, const ProblemData& problem_d
 // mm/ll: rotas reais candidatas, ou -1 se ausente ou se for o pool virtual
 // (rota de índice M, jobs não processados, que não ocupa recurso nenhum).
 //
-// Para cada recurso tocado, faz um merge de até 3 listas ordenadas por início
+// Para cada recurso tocado, faz um merge de até 3 listas ordenadas por (s, k)
 // (G sem mm/ll, A = trial de mm, B = trial de ll) mantendo last_end[k]:
 //   - intervalo de mm (A): toda outra máquina j (≠ mm, ≠ ll) com last_end[j] > s
 //     conflita com mm; se last_end[ll] > s, o par (mm, ll) conflita;
 //   - intervalo de ll (B): análogo;
 //   - intervalo de outra máquina k (G): se last_end[mm] > s conflita com mm, e
 //     se last_end[ll] > s conflita com ll.
-// mark_m/mark_l (carimbo) contam cada máquina uma vez por recurso, e o par
-// (mm, ll) conta uma vez. Custo por recurso: O(a_r + b_r + a_r * M).
+// Custo por recurso: O(n_r + (a_r + b_r) * M).
 static int trialViolations(Solution& sol, int M, int mm, int ll) {
     const TrialIntervals* tm = (mm >= 0) ? &sol.trial1 : nullptr;
     const TrialIntervals* tl = (ll >= 0) ? &sol.trial2 : nullptr;
@@ -155,12 +150,9 @@ static int trialViolations(Solution& sol, int M, int mm, int ll) {
         const std::vector<ResourceInterval>& G = sol.resource_intervals[r];
         if (G.empty() && !(A && B)) return 0;
 
-        sol.stamp++;
-        const uint64_t stamp = sol.stamp;
         std::fill(sol.last_end.begin(), sol.last_end.end(), INT_MIN);
 
         int count = 0;
-        bool pair_ml = false;
         size_t ig = 0, ia = 0, ib = 0;
 
         while (true) {
@@ -170,35 +162,39 @@ static int trialViolations(Solution& sol, int M, int mm, int ll) {
             const bool hasB = B && ib < B->size();
             if (!hasG && !hasA && !hasB) break;
 
-            // Escolhe a menor cabeça por início
-            int src = -1, best_s = INT_MAX;
-            if (hasG)  { src = 0; best_s = G[ig].s; }
-            if (hasA && (*A)[ia].first < best_s) { src = 1; best_s = (*A)[ia].first; }
-            if (hasB && (*B)[ib].first < best_s) { src = 2; best_s = (*B)[ib].first; }
+            // Escolhe a menor cabeça por (s, k), mantendo a mesma ordem do std::sort de rebuildResourceIntervals
+            int src = -1, best_s = INT_MAX, best_k = INT_MAX;
+            if (hasG) { src = 0; best_s = G[ig].s; best_k = G[ig].k; }
+            if (hasA && ((*A)[ia].first < best_s || ((*A)[ia].first == best_s && mm < best_k))) {
+                src = 1; best_s = (*A)[ia].first; best_k = mm;
+            }
+            if (hasB && ((*B)[ib].first < best_s || ((*B)[ib].first == best_s && ll < best_k))) {
+                src = 2; best_s = (*B)[ib].first; best_k = ll;
+            }
 
             int s = best_s, e, k;
             if (src == 0) {
                 e = G[ig].e; k = G[ig].k; ig++;
-                if (mm >= 0 && sol.last_end[mm] > s && sol.mark_m[k] != stamp) { sol.mark_m[k] = stamp; count++; }
-                if (ll >= 0 && sol.last_end[ll] > s && sol.mark_l[k] != stamp) { sol.mark_l[k] = stamp; count++; }
+                if (mm >= 0 && sol.last_end[mm] > s) count++;
+                if (ll >= 0 && sol.last_end[ll] > s) count++;
             } else if (src == 1) {
                 e = (*A)[ia].second; k = mm; ia++;
                 for (int j = 0; j < M; j++) {
                     if (j == mm || j == ll || sol.last_end[j] <= s) continue;
-                    if (sol.mark_m[j] != stamp) { sol.mark_m[j] = stamp; count++; }
+                    count++;
                 }
-                if (ll >= 0 && sol.last_end[ll] > s) pair_ml = true;
+                if (ll >= 0 && sol.last_end[ll] > s) count++;
             } else {
                 e = (*B)[ib].second; k = ll; ib++;
                 for (int j = 0; j < M; j++) {
                     if (j == mm || j == ll || sol.last_end[j] <= s) continue;
-                    if (sol.mark_l[j] != stamp) { sol.mark_l[j] = stamp; count++; }
+                    count++;
                 }
-                if (mm >= 0 && sol.last_end[mm] > s) pair_ml = true;
+                if (mm >= 0 && sol.last_end[mm] > s) count++;
             }
             sol.last_end[k] = std::max(sol.last_end[k], e);
         }
-        return count + (pair_ml ? 1 : 0);
+        return count;
     };
 
     int total = 0;
