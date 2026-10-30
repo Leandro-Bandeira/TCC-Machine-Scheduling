@@ -38,8 +38,8 @@ USE_INSTANCE_FILTERS = True
 # Instâncias cuja capacidade da máquina e número de jobs não casarem com nenhuma tupla
 # serão descartadas do run_config.json quando USE_INSTANCE_FILTERS = True.
 INSTANCE_FILTERS: list[tuple[int, int, int]] = [
-    (2, 2, 300),
-    (1, 4, 300),
+    (2, 10, 300),
+    (1, 10, 300),
     (10, 10, 300),
 ]
 
