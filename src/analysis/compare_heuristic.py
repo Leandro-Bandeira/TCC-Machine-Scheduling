@@ -29,7 +29,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from src.analysis.run_heuristic_multi import N_RUNS, run_heuristic_best_of
+from run_heuristic_multi import N_RUNS, run_heuristic_best_of
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 TRUSTED_DIR = BASE_DIR / "data" / "trusted"

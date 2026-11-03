@@ -16,7 +16,7 @@
                 {
                     "due_date_slot": 287,
                     "end": 50,
-                    "job_id": 166,
+                    "job_id": 6,
                     "processing_slots": 1,
                     "release_date_slot": 0,
                     "resource_id": 0,
@@ -24,9 +24,9 @@
                     "sub_machine": 0
                 },
                 {
-                    "due_date_slot": 288,
+                    "due_date_slot": 287,
                     "end": 51,
-                    "job_id": 42,
+                    "job_id": 166,
                     "processing_slots": 1,
                     "release_date_slot": 0,
                     "resource_id": 0,
@@ -34,9 +34,9 @@
                     "sub_machine": 0
                 },
                 {
-                    "due_date_slot": 287,
+                    "due_date_slot": 288,
                     "end": 52,
-                    "job_id": 6,
+                    "job_id": 42,
                     "processing_slots": 1,
                     "release_date_slot": 0,
                     "resource_id": 0,
@@ -116,27 +116,41 @@
                 {
                     "due_date_slot": 1152,
                     "end": 398,
-                    "job_id": 45,
+                    "job_id": 11,
                     "processing_slots": 44,
                     "release_date_slot": 288,
-                    "resource_id": 3,
+                    "resource_id": 1,
                     "start": 354,
                     "sub_machine": 0
                 },
                 {
                     "due_date_slot": 1152,
                     "end": 449,
-                    "job_id": 11,
+                    "job_id": 45,
                     "processing_slots": 44,
                     "release_date_slot": 288,
-                    "resource_id": 1,
+                    "resource_id": 3,
                     "start": 405,
                     "sub_machine": 0
                 }
             ],
             "machine_id": 3,
             "objective_function": 0.41914722445695896,
-            "solve_time_seconds": 0.006710727
+            "solve_time_seconds": 0.008762785,
+            "heuristic_mean": 0.41914722445695896,
+            "heuristic_runs_fo": [
+                0.41914722445695896,
+                0.41914722445695896,
+                0.41914722445695896,
+                0.41914722445695896,
+                0.41914722445695896,
+                0.41914722445695896,
+                0.41914722445695896,
+                0.41914722445695896,
+                0.41914722445695896,
+                0.41914722445695896
+            ],
+            "heuristic_total_time_seconds": 0.08794368799999999
         }
     ]
 }

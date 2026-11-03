@@ -26,7 +26,7 @@
                 {
                     "due_date_slot": 1152,
                     "end": 63,
-                    "job_id": 74,
+                    "job_id": 77,
                     "processing_slots": 3,
                     "release_date_slot": 0,
                     "resource_id": 4,
@@ -36,7 +36,7 @@
                 {
                     "due_date_slot": 1152,
                     "end": 66,
-                    "job_id": 77,
+                    "job_id": 74,
                     "processing_slots": 3,
                     "release_date_slot": 0,
                     "resource_id": 4,
@@ -46,10 +46,10 @@
                 {
                     "due_date_slot": 1152,
                     "end": 73,
-                    "job_id": 72,
+                    "job_id": 73,
                     "processing_slots": 5,
                     "release_date_slot": 0,
-                    "resource_id": 2,
+                    "resource_id": 3,
                     "start": 68,
                     "sub_machine": 0
                 },
@@ -66,17 +66,17 @@
                 {
                     "due_date_slot": 1152,
                     "end": 83,
-                    "job_id": 76,
+                    "job_id": 72,
                     "processing_slots": 5,
                     "release_date_slot": 0,
-                    "resource_id": 3,
+                    "resource_id": 2,
                     "start": 78,
                     "sub_machine": 0
                 },
                 {
                     "due_date_slot": 1152,
                     "end": 88,
-                    "job_id": 73,
+                    "job_id": 76,
                     "processing_slots": 5,
                     "release_date_slot": 0,
                     "resource_id": 3,
@@ -126,7 +126,21 @@
             ],
             "machine_id": 5,
             "objective_function": 0.4331433581762385,
-            "solve_time_seconds": 0.00478374
+            "solve_time_seconds": 0.006224716,
+            "heuristic_mean": 0.43314335817623845,
+            "heuristic_runs_fo": [
+                0.4331433581762385,
+                0.4331433581762385,
+                0.4331433581762385,
+                0.4331433581762385,
+                0.4331433581762385,
+                0.4331433581762385,
+                0.4331433581762385,
+                0.4331433581762385,
+                0.4331433581762385,
+                0.4331433581762385
+            ],
+            "heuristic_total_time_seconds": 0.06375494
         }
     ]
 }
