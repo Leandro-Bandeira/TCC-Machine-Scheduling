@@ -219,6 +219,13 @@ def collect_comparisons(run_config: dict, skip_existing: bool = False) -> list[d
                 mip_time = mach.get("solve_time_seconds")
                 mip_unallocated = mach.get("count_jobs_not_allocated", 0)
 
+                # Sem resultado do MIP não há o que comparar: pula (sem rodar a heurística)
+                if mip_fo is None:
+                    print(
+                        f"[skip] {dt} / status={status} / {machine_name} (id={machine_id}): sem resultado MIP"
+                    )
+                    continue
+
                 # Se skip_existing for False ou output_heuristic.json não existir, roda a heurística.
                 # best_fo = melhor execução (warm start); mean_* = média das execuções (comparação c/ MIP)
                 best_fo, mean_fo, mean_unallocated, mean_time = (None, None, None, None)
