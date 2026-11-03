@@ -10,7 +10,7 @@
 // Movimentos intra-rota (vizinhanças 1-5):
 //   Swap    — troca dois jobs de posição dentro de uma rota
 //   OrOpt-k — reinsere um segmento de k jobs consecutivos em outra posição da mesma rota
-//   2-Opt   — inverte um segmento de uma rota entre as posições i+1 e j
+//   2-Opt Block-Reversing — inverte um bloco de k (2 ou 3) jobs consecutivos de uma rota
 //
 // Movimentos inter-rota (vizinhanças 6-7):
 //   SwapInterRoute — troca job_i da rota m com job_j da rota l (m < l), simétrico
@@ -27,6 +27,7 @@ class LocalSearch{
     public:
         static bool bestImprovementSwap(const ProblemData& problemData, Solution& solution);
         static bool bestImprovementOrOpt(const ProblemData& problemData, Solution& solution, int k);
+        static bool bestImprovementReverse(const ProblemData& problemData, Solution& solution, int k);
         static Solution algorithm(const ProblemData& problemData, Solution solution);
         static bool bestImprovementSwapInterRoute(const ProblemData& problemData, Solution& solution);
         static bool bestImprovementRealocate(const ProblemData& problemData, Solution& solution, int k);

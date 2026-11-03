@@ -19,15 +19,15 @@ Para cada vizinhança, o algoritmo explora **todos** os vizinhos válidos e sele
 
 ---
 
-## 2. As 7 Estruturas de Vizinhança do RVND (`LocalSearch::algorithm`)
+## 2. As 8 Estruturas de Vizinhança do RVND (`LocalSearch::algorithm`)
 
-O procedimento **RVND** (*Random Variable Neighborhood Descent*) sorteia aleatoriamente entre $7$ vizinhanças ativas ($NL = \{1, 2, 3, 4, 5, 6, 7\}$).
+O procedimento **RVND** (*Random Variable Neighborhood Descent*) sorteia aleatoriamente entre $8$ vizinhanças ativas ($NL = \{1, 2, 3, 4, 5, 6, 7, 8\}$).
 
-Se uma vizinhança encontra melhora, o vetor $NL$ é reinicializado com todas as $7$ vizinhanças. Se não houver melhora, a vizinhança é removida de $NL$ em $\mathcal{O}(1)$ via `swap + pop_back`. O RVND encerra quando $NL$ fica vazio (ótimo local simultâneo em todas as 7 vizinhanças).
+Se uma vizinhança encontra melhora, o vetor $NL$ é reinicializado com todas as $7$ vizinhanças. Se não houver melhora, a vizinhança é removida de $NL$ em $\mathcal{O}(1)$ via `swap + pop_back`. O RVND encerra quando $NL$ fica vazio (ótimo local simultâneo em todas as 8 vizinhanças).
 
 ---
 
-### **A. Movimentos Intra-Rota (Vizinhanças 1 a 5)**
+### **A. Movimentos Intra-Rota (Vizinhanças 1 a 3, 7 e 8)**
 
 Estes movimentos atuam dentro de cada rota $m \in \{0, \dots, \text{count\_machines}-1\}$ individualmente:
 
@@ -41,26 +41,17 @@ Estes movimentos atuam dentro de cada rota $m \in \{0, \dots, \text{count\_machi
 * **Assimestria**: Assimétrico. O destino $j$ varre todo o intervalo válido da rota pós-remoção ($j \ne i$).
 * **Exemplo**: $[D, 1, \mathbf{2}, 3, 4, 5, D] \rightarrow [D, 1, 3, 4, 5, \mathbf{2}, D]$.
 
-#### **3. 2-Opt (`bestImprovement2Opt` — Vizinhança 3)**
-* **Operação**: Inverte a ordem da subsequência de jobs entre a posição $i+1$ e $j$ na mesma rota ($j \ge i+2$).
-* **Simetria**: Simétrico. O limite inicial é $j = i+2$.
-* **Exemplo**: $[D, 1, 2, \mathbf{3, 4, 5}, 6, D] \rightarrow [D, 1, 2, \mathbf{5, 4, 3}, 6, D]$.
-
-#### **4. OrOpt-2 (`bestImprovementOrOpt(k=2)` — Vizinhança 4)**
+#### **3. OrOpt-2 (`bestImprovementOrOpt(k=2)` — Vizinhança 3)**
 * **Operação**: Remove um bloco de $2$ jobs consecutivos $\{v_i, v_{i+1}\}$ e o reinsere na posição $j$ da mesma rota, preservando a ordem interna do bloco.
 * **Exemplo**: $[D, 1, \mathbf{2, 3}, 4, 5, D] \rightarrow [D, 1, 4, 5, \mathbf{2, 3}, D]$.
 
-#### **5. OrOpt-3 (`bestImprovementOrOpt(k=3)` — Vizinhança 5)**
-* **Operação**: Remove um bloco de $3$ jobs consecutivos $\{v_i, v_{i+1}, v_{i+2}\}$ e o reinsere na posição $j$ da mesma rota, preservando a ordem interna do bloco.
-* **Exemplo**: $[D, 1, \mathbf{2, 3, 4}, 5, 6, D] \rightarrow [D, 1, 5, 6, \mathbf{2, 3, 4}, D]$.
-
 ---
 
-### **B. Movimentos Inter-Rota (Vizinhanças 6 e 7)**
+### **B. Movimentos Inter-Rota (Vizinhanças 4 a 6)**
 
 Estes movimentos transferem ou trocam jobs **entre máquinas paralelas distintas**:
 
-#### **6. Swap Inter-Rota (`bestImprovementSwapInterRoute` — Vizinhança 6)**
+#### **4. Swap Inter-Rota (`bestImprovementSwapInterRoute` — Vizinhança 4)**
 * **Operação**: Troca um job $v_i$ da rota $m$ por um job $v_j$ da rota $l$ ($m < l$).
 * **Aplicação**: Permite reequilibrar o mix de produtos e reduzir setups entre máquinas paralelas.
 * **Simetria**: Simétrico ($m < l$).
@@ -71,7 +62,7 @@ Estes movimentos transferem ou trocam jobs **entre máquinas paralelas distintas
     - Rota $m$: $[D, a_1, \mathbf{b_2}, a_3, D]$
     - Rota $l$: $[D, b_1, \mathbf{a_2}, D]$
 
-#### **7. Realocate Inter-Rota (`bestImprovementRealocate` — Vizinhança 7)**
+#### **5 e 6. Realocate Inter-Rota (`bestImprovementRealocate`, k=1 e k=2 — Vizinhanças 5 e 6)**
 * **Operação**: Remove um job $v_i$ da rota $m$ e o insere na posição $j$ da rota $l$ ($m \neq l$).
 * **Aplicação**: Transfere carga de trabalho entre máquinas para mitigar atrasos e melhorar o nivelamento da produção.
 * **Assimestria**: Assimétrico (itera todos os pares $m \ne l$).
@@ -81,6 +72,16 @@ Estes movimentos transferem ou trocam jobs **entre máquinas paralelas distintas
   - Após Realocate:
     - Rota $m$: $[D, a_1, a_3, D]$
     - Rota $l$: $[D, b_1, \mathbf{a_2}, b_2, D]$
+
+---
+
+### **C. 2-Opt Block-Reversing (Vizinhanças 7 e 8)**
+
+#### **7 e 8. Reverse-k (`bestImprovementReverse(k)`, k=2 e k=3)**
+* **Operação**: Inverte in-place a ordem de um bloco de $k$ jobs consecutivos $[i, i+k)$ dentro da mesma rota. Vizinhança 7: $k=2$ (equivale a swap de adjacentes); Vizinhança 8: $k=3$.
+* **Simetria**: Simétrico (aplicar duas vezes volta ao original). Teste em $O(n)$ posições $i$ por rota, avaliação via `evaluateIntraRoute`.
+* **Aplicação**: Em máquinas com muitos empates de tardiness (platô), o desempate por $\varepsilon \cdot \sum C$ favorece ordens tipo SPT; inverter blocos curtos corrige trechos mal ordenados (ex.: processamentos 9,5,2 → 2,5,9 com $k=3$).
+* **Exemplo ($k=3$)**: $[D, 1, \mathbf{2, 3, 4}, 5, D] \rightarrow [D, 1, \mathbf{4, 3, 2}, 5, D]$.
 
 ---
 

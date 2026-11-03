@@ -89,6 +89,59 @@ bool LocalSearch::bestImprovementOrOpt(const ProblemData &problemData, Solution 
 }
 
 // ---------------------------------------------------------------------------
+// 2-Opt Block-Reversing (inversão de bloco de tamanho k)
+// ---------------------------------------------------------------------------
+//
+// Inverte a ordem de um bloco de k jobs consecutivos [i, i+k) dentro da mesma
+// rota. k pode ser 2 ou 3 (k=2 equivale a um swap de adjacentes).
+//
+// Exemplo para k=3, i=1 em [D,1,2,3,4,5,D]:
+//   Inverte posições 1..3 → [D,1,4,3,2,5,D]
+//
+// É simétrico: aplicar duas vezes o mesmo (i,k) volta à rota original.
+// A inversão é feita in-place sobre a rota e desfeita após avaliar.
+bool LocalSearch::bestImprovementReverse(const ProblemData &problemData, Solution &solution, int k){
+    double bestDelta = solution.objective_function;
+    double fo_anterior = solution.objective_function;
+    int best_route = -1, best_i = -1;
+
+    for (int m = 0; m < problemData.getCountMachines(); m++) {
+        std::vector<Job>& route = solution.routes[m];
+        int n = (int)route.size();
+        if (n < k) continue;
+
+        for (int i = 0; i <= n - k; i++) {
+            std::reverse(route.begin() + i, route.begin() + i + k);
+
+            double delta = evaluateIntraRoute(solution, problemData, m);
+            if (bestDelta - delta > EPS_FO) {
+                bestDelta = delta;
+                best_route = m;
+                best_i = i;
+            }
+            std::reverse(route.begin() + i, route.begin() + i + k); // desfaz a inversão
+        }
+    }
+
+    if (best_route != -1) {
+        std::vector<Job>& route = solution.routes[best_route];
+        std::reverse(route.begin() + best_i, route.begin() + best_i + k);
+        solution.invalidateRoute(best_route);
+        solution.objective_function = evaluate(solution, problemData);
+        double gain = fo_anterior - solution.objective_function;
+        std::ostringstream oss;
+        oss << std::fixed << std::setprecision(10);
+        oss << "Movimento: Reverse-" << k
+            << ", Ganho: " << gain
+            << ", FO_Anterior: " << fo_anterior
+            << ", FO_Nova: " << solution.objective_function;
+        Debug::log(oss.str());
+        return true;
+    }
+    return false;
+}
+
+// ---------------------------------------------------------------------------
 // Swap
 // ---------------------------------------------------------------------------
 //
@@ -307,12 +360,15 @@ bool LocalSearch::bestImprovementRealocate(const ProblemData &problemData, Solut
 // RVND — Random Variable Neighborhood Descent
 // ---------------------------------------------------------------------------
 //
-// Explora 5 vizinhanças em ordem aleatória:
+// Explora 8 vizinhanças em ordem aleatória:
 //   1 = Swap Intra-Máquina 1x1
 //   2 = OrOpt-1 Intra-Máquina
 //   3 = OrOpt-2 Intra-Máquina
 //   4 = Swap Inter-Máquinas 1x1 (inclui Pool Virtual)
-//   5 = Realocate Inter-Máquinas (inclui Pool Virtual)
+//   5 = Realocate Inter-Máquinas k=1 (inclui Pool Virtual)
+//   6 = Realocate Inter-Máquinas k=2 (inclui Pool Virtual)
+//   7 = 2-Opt Block-Reversing k=2 Intra-Máquina
+//   8 = 2-Opt Block-Reversing k=3 Intra-Máquina
 //
 // Regra de atualização:
 //   - Sorteia vizinhança aleatória de NL
@@ -322,7 +378,7 @@ bool LocalSearch::bestImprovementRealocate(const ProblemData &problemData, Solut
 // Termina quando NL fica vazia: ótimo local simultâneo em todas as vizinhanças.
 Solution LocalSearch::algorithm(const ProblemData &problemData, Solution solution){
     solution.objective_function = evaluate(solution, problemData);
-    std::vector<int> NL = {1, 2, 3, 4, 5, 6};
+    std::vector<int> NL = {1, 2, 3, 4, 5, 6, 7, 8};
     bool improved = false;
 
     while(!NL.empty()){
@@ -334,9 +390,12 @@ Solution LocalSearch::algorithm(const ProblemData &problemData, Solution solutio
             case 4: improved = bestImprovementSwapInterRoute(problemData, solution);    break;
             case 5: improved = bestImprovementRealocate(problemData, solution, 1);         break;
             case 6: improved = bestImprovementRealocate(problemData, solution, 2);         break;
+            case 7: improved = bestImprovementReverse(problemData, solution, 2);        break;
+            case 8: improved = bestImprovementReverse(problemData, solution, 3);        break;
+            
         }
         if(improved){
-            NL = {1, 2, 3, 4, 5, 6};
+            NL = {1, 2, 3, 4, 5, 6, 7, 8};
         }else{
             std::swap(NL[n], NL.back());
             NL.pop_back();
