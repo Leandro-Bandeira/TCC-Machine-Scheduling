@@ -91,7 +91,7 @@ while IFS='|' read -r DT STATUSES MACHINES; do
     echo ">>> [Warm Start] Executando heurística C++..."
     while IFS='|' read -r INPUT_FILE MACHINE_ID MACHINE_NAME; do
       echo "  [Heurística] $INPUT_FILE — $MACHINE_NAME (id=$MACHINE_ID)"
-      ./src/heuristics/heuristic "$INPUT_FILE" "$MACHINE_ID"
+      python3 -m src.analysis.run_heuristic_multi "$INPUT_FILE" "$MACHINE_ID" --runs 10
     done < <(python3 -c "
 import json
 from pathlib import Path
