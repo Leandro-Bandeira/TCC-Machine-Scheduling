@@ -6,8 +6,11 @@ O binário `./heuristic <input.json> <machine_id>` sobrescreve a entrada da máq
 1. Roda o binário `n_runs` vezes (padrão 10), lendo a FO de cada execução.
 2. Mantém em `output_heuristic.json` apenas a melhor solução (menor FO), que é a usada
    como warm start pelo `optimize.py`.
-3. Acrescenta à entrada da máquina os campos `heuristic_mean` (média das FOs das
-   execuções), `heuristic_runs_fo` (FO de cada execução) e `heuristic_total_time_seconds`.
+3. Acrescenta à entrada da máquina as estatísticas de todas as execuções:
+   `heuristic_mean_fo`, `heuristic_mean_unallocated`, `heuristic_mean_time_seconds`
+   (médias) e `heuristic_runs_fo` (FO de cada execução).
+   Os campos originais (`objective_function`, `solve_time_seconds`,
+   `count_jobs_not_allocated`, `jobs`) continuam sendo os da MELHOR execução.
 
 Uso:
     python3 -m src.analysis.run_heuristic_multi <input.json> <machine_id> [--runs 10]
@@ -67,8 +70,9 @@ def run_heuristic_best_of(
         n_runs: Número de execuções.
 
     Returns:
-        A entrada da melhor solução, com `heuristic_mean`, `heuristic_runs_fo` e
-        `heuristic_total_time_seconds` adicionados.
+        A entrada da melhor solução, com as médias (`heuristic_mean_fo`,
+        `heuristic_mean_unallocated`, `heuristic_mean_time_seconds`) e
+        `heuristic_runs_fo` adicionados.
 
     Raises:
         RuntimeError: Se nenhuma execução produzir solução.
@@ -79,7 +83,8 @@ def run_heuristic_best_of(
 
     best: dict | None = None
     fos: list[float] = []
-    total_time = 0.0
+    times: list[float] = []
+    unallocated: list[float] = []
     last_second = -1
 
     for _ in range(n_runs):
@@ -99,7 +104,8 @@ def run_heuristic_best_of(
             continue
 
         fos.append(entry["objective_function"])
-        total_time += entry.get("solve_time_seconds") or 0.0
+        times.append(entry.get("solve_time_seconds") or 0.0)
+        unallocated.append(entry.get("count_jobs_not_allocated") or 0)
         if best is None or entry["objective_function"] < best["objective_function"]:
             best = entry
 
@@ -108,9 +114,10 @@ def run_heuristic_best_of(
             f"Heurística não produziu solução para machine_id={machine_id} em {input_file}"
         )
 
-    best["heuristic_mean"] = sum(fos) / len(fos)
+    best["heuristic_mean_fo"] = sum(fos) / len(fos)
+    best["heuristic_mean_unallocated"] = sum(unallocated) / len(unallocated)
+    best["heuristic_mean_time_seconds"] = sum(times) / len(times)
     best["heuristic_runs_fo"] = fos
-    best["heuristic_total_time_seconds"] = total_time
     _write_machine_entry(heuristic_file, machine_id, best)
     return best
 
@@ -127,7 +134,7 @@ def main() -> None:
     best = run_heuristic_best_of(args.input_file, args.machine_id, args.runs)
     print(
         f"  [Heurística] best={best['objective_function']:.6f} "
-        f"mean={best['heuristic_mean']:.6f} ({len(best['heuristic_runs_fo'])} execuções)"
+        f"mean={best['heuristic_mean_fo']:.6f} ({len(best['heuristic_runs_fo'])} execuções)"
     )
 
 

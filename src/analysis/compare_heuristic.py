@@ -8,11 +8,11 @@ Este módulo realiza a comparação sistemática entre:
 Para cada instância ativa listada em `run_config.json`:
 - Compila o binário da heurística C++ (`make -C src/heuristics`), se necessário.
 - Executa a heurística 10 vezes, mantendo a melhor como solução (e warm start) e
-  registrando a média em `heuristic_mean` (ou reaproveita execuções prévias se `--skip-existing` for informado).
+  registrando a média das execuções (ou reaproveita execuções prévias se `--skip-existing` for informado).
 - Compara métricas-chave por máquina:
   - Função Objetivo (FO MIP vs FO Heurística, com diferença absoluta e percentual).
   - Quantidade de jobs não alocados / penalizados (`unallocated`).
-  - Tempo de execução em segundos (`mip_time_seconds` vs `heuristic_time_seconds`).
+  - Tempo de execução em segundos (`mip_time_seconds` vs `mean_heuristic_time_seconds`).
   - Gap do MIP, condição de término (`terminal_conditional_mip`) e dimensões do problema (`count_jobs`, `count_machines`, `H`).
 
 Gera o relatório consolidado em `data/heuristic_vs_mip.csv`.
@@ -29,7 +29,10 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from run_heuristic_multi import N_RUNS, run_heuristic_best_of
+try:
+    from src.analysis.run_heuristic_multi import N_RUNS, run_heuristic_best_of
+except ModuleNotFoundError:  # execução direta: python3 src/analysis/compare_heuristic.py
+    from run_heuristic_multi import N_RUNS, run_heuristic_best_of
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 TRUSTED_DIR = BASE_DIR / "data" / "trusted"
@@ -48,17 +51,16 @@ FIELDNAMES = [
     "H",
     "mip_fo",
     "warm_start_value",
-    "heuristic_fo",
-    "heuristic_mean",
+    "mean_heuristic_fo",
     "best_heuristic_fo",
     "fo_diff",
     "fo_diff_pct",
     "mip_gap",
     "terminal_conditional_mip",
     "mip_unallocated",
-    "heuristic_unallocated",
+    "mean_heuristic_unallocated",
     "mip_time_seconds",
-    "heuristic_time_seconds",
+    "mean_heuristic_time_seconds",
     "time_diff_seconds",
 ]
 
@@ -94,7 +96,7 @@ def run_heuristic(input_file: Path, machine_id: int) -> None:
     Executa a heurística C++ `N_RUNS` (10) vezes para uma máquina de uma instância.
 
     A melhor solução (menor FO) fica em `output_heuristic.json`, no mesmo diretório do
-    `input.json`, junto com `heuristic_mean` (média das FOs das execuções).
+    `input.json`, junto com as médias das execuções (FO, não alocados e tempo).
 
     Args:
         input_file: Caminho para o `input.json` da instância.
@@ -109,18 +111,20 @@ def run_heuristic(input_file: Path, machine_id: int) -> None:
 
 def read_heuristic_json(
     heuristic_file: Path, machine_id: int
-) -> tuple[float | None, float | None, int | None, float | None]:
+) -> tuple[float | None, float | None, float | None, float | None]:
     """
-    Extrai as métricas de desempenho de uma máquina específica a partir de `output_heuristic.json`.
+    Extrai as métricas de uma máquina a partir de `output_heuristic.json`.
 
     Args:
-        heuristic_file: Caminho para o arquivo `output_heuristic.json`.
+        heuristic_file: Caminho para o `output_heuristic.json`.
         machine_id: ID numérico da máquina desejada.
 
     Returns:
-        Tupla contendo `(objective_function, solve_time_seconds, count_jobs_not_allocated,
-        heuristic_mean)`. `heuristic_mean` é None se o arquivo foi gerado sem múltiplas execuções.
-        Retorna `(None, None, None, None)` se o arquivo não existir ou se a máquina não for encontrada.
+        Tupla `(best_fo, mean_fo, mean_unallocated, mean_time_seconds)`:
+        - `best_fo`: FO da melhor execução (a mesma usada como warm start).
+        - `mean_fo`, `mean_unallocated`, `mean_time_seconds`: médias das execuções
+          (None se o arquivo foi gerado sem múltiplas execuções).
+        Retorna `(None, None, None, None)` se o arquivo ou a máquina não existirem.
     """
     if not heuristic_file.exists():
         return None, None, None, None
@@ -131,9 +135,9 @@ def read_heuristic_json(
             if m.get("machine_id") == machine_id:
                 return (
                     m.get("objective_function"),
-                    m.get("solve_time_seconds"),
-                    m.get("count_jobs_not_allocated", 0),
-                    m.get("heuristic_mean"),
+                    m.get("heuristic_mean_fo"),
+                    m.get("heuristic_mean_unallocated"),
+                    m.get("heuristic_mean_time_seconds"),
                 )
     except Exception as e:
         print(f"  [erro ao ler {heuristic_file}]: {e}")
@@ -147,7 +151,8 @@ def collect_comparisons(run_config: dict, skip_existing: bool = False) -> list[d
     Para cada par (data, status) e cada máquina configurada:
     1. Lê a solução MIP de `output.json`.
     2. Lê (ou executa via C++) a solução da Heurística em `output_heuristic.json`.
-    3. Calcula diferenças absolutas e percentuais da função objetivo e do tempo de execução.
+    3. Calcula diferenças absolutas e percentuais da função objetivo e do tempo de execução
+       (usando a média das execuções da heurística).
 
     Args:
         run_config: Dicionário carregado de `run_config.json`.
@@ -214,49 +219,46 @@ def collect_comparisons(run_config: dict, skip_existing: bool = False) -> list[d
                 mip_time = mach.get("solve_time_seconds")
                 mip_unallocated = mach.get("count_jobs_not_allocated", 0)
 
-                # Se skip_existing for False ou output_heuristic.json não existir, roda a heurística
-                heuristic_fo, heuristic_time, heuristic_unallocated, heuristic_mean = (
-                    None,
-                    None,
-                    None,
-                    None,
-                )
+                # Se skip_existing for False ou output_heuristic.json não existir, roda a heurística.
+                # best_fo = melhor execução (warm start); mean_* = média das execuções (comparação c/ MIP)
+                best_fo, mean_fo, mean_unallocated, mean_time = (None, None, None, None)
                 if skip_existing:
                     (
-                        heuristic_fo,
-                        heuristic_time,
-                        heuristic_unallocated,
-                        heuristic_mean,
+                        best_fo,
+                        mean_fo,
+                        mean_unallocated,
+                        mean_time,
                     ) = read_heuristic_json(output_heuristic_file, machine_id)
 
-                # Reexecuta também se o arquivo existente não tem a média (gerado com 1 execução)
-                if heuristic_fo is None or heuristic_mean is None:
+                # Reexecuta também se o arquivo existente não tem as médias (gerado com 1 execução)
+                if best_fo is None or mean_fo is None:
                     print(
                         f"[run] Executando heurística: {dt} / status={status} / {machine_name} (id={machine_id})"
                     )
                     try:
                         run_heuristic(input_file, machine_id)
                         (
-                            heuristic_fo,
-                            heuristic_time,
-                            heuristic_unallocated,
-                            heuristic_mean,
+                            best_fo,
+                            mean_fo,
+                            mean_unallocated,
+                            mean_time,
                         ) = read_heuristic_json(output_heuristic_file, machine_id)
                     except (RuntimeError, subprocess.CalledProcessError) as e:
                         print(f"  [ERRO] {e}")
                         continue
 
-                if heuristic_fo is None:
+                if best_fo is None or mean_fo is None:
                     print(
                         f"  [AVISO] {machine_name} (id={machine_id}) não encontrada em {output_heuristic_file}"
                     )
                     continue
 
-                fo_diff = heuristic_fo - (mip_fo if mip_fo is not None else 0.0)
+                # Comparações com o MIP usam a MÉDIA da heurística
+                fo_diff = mean_fo - (mip_fo if mip_fo is not None else 0.0)
                 fo_diff_pct = (
                     (fo_diff / mip_fo * 100) if (mip_fo and mip_fo != 0) else float("nan")
                 )
-                time_diff = (heuristic_time or 0.0) - (mip_time or 0.0)
+                time_diff = (mean_time or 0.0) - (mip_time or 0.0)
 
                 rows.append(
                     {
@@ -269,26 +271,25 @@ def collect_comparisons(run_config: dict, skip_existing: bool = False) -> list[d
                         "H": h_horizon,
                         "mip_fo": mip_fo,
                         "warm_start_value": warm_start_value,
-                        "heuristic_fo": heuristic_fo,
-                        "heuristic_mean": heuristic_mean,
-                        "best_heuristic_fo": heuristic_fo,  # melhor FO entre as execuções
+                        "mean_heuristic_fo": mean_fo,
+                        "best_heuristic_fo": best_fo,
                         "fo_diff": fo_diff,
                         "fo_diff_pct": fo_diff_pct,
                         "mip_gap": mip_gap,
                         "terminal_conditional_mip": terminal_conditional_mip,
                         "mip_unallocated": mip_unallocated,
-                        "heuristic_unallocated": heuristic_unallocated,
+                        "mean_heuristic_unallocated": mean_unallocated,
                         "mip_time_seconds": mip_time,
-                        "heuristic_time_seconds": heuristic_time,
+                        "mean_heuristic_time_seconds": mean_time,
                         "time_diff_seconds": time_diff,
                     }
                 )
                 print(
                     f"[{dt}/{status}] {machine_name} (id={machine_id})"
                     f" | jobs={count_jobs} mach={count_machines} H={h_horizon}"
-                    f" | fo: mip={mip_fo} (gap={mip_gap}) heur={heuristic_fo:.4f} mean={heuristic_mean:.4f} diff={fo_diff:+.4f}"
-                    f" | unallocated: mip={mip_unallocated} heur={heuristic_unallocated}"
-                    f" | tempo: mip={mip_time}s heur={heuristic_time:.3f}s"
+                    f" | fo: mip={mip_fo} (gap={mip_gap}) mean={mean_fo:.4f} best={best_fo:.4f} diff={fo_diff:+.4f}"
+                    f" | unallocated: mip={mip_unallocated} mean={mean_unallocated}"
+                    f" | tempo: mip={mip_time}s mean={mean_time:.3f}s"
                 )
 
     return rows

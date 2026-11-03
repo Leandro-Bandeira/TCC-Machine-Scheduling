@@ -10,7 +10,8 @@
 // Movimentos intra-rota (vizinhanças 1-5):
 //   Swap    — troca dois jobs de posição dentro de uma rota
 //   OrOpt-k — reinsere um segmento de k jobs consecutivos em outra posição da mesma rota
-//   2-Opt Block-Reversing — inverte um bloco de k (2 ou 3) jobs consecutivos de uma rota
+//   2-Opt Block-Reversing — inverte um bloco de k (2 ou 3) jobs consecutivos de uma rota;
+//                           com k=0 é o 2-Opt completo (qualquer tamanho), usado com 1 máquina real
 //
 // Movimentos inter-rota (vizinhanças 6-7):
 //   SwapInterRoute — troca job_i da rota m com job_j da rota l (m < l), simétrico

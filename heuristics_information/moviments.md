@@ -19,15 +19,15 @@ Para cada vizinhança, o algoritmo explora **todos** os vizinhos válidos e sele
 
 ---
 
-## 2. As 8 Estruturas de Vizinhança do RVND (`LocalSearch::algorithm`)
+## 2. As Estruturas de Vizinhança do RVND (`LocalSearch::algorithm`)
 
-O procedimento **RVND** (*Random Variable Neighborhood Descent*) sorteia aleatoriamente entre $8$ vizinhanças ativas ($NL = \{1, 2, 3, 4, 5, 6, 7, 8\}$).
+O procedimento **RVND** (*Random Variable Neighborhood Descent*) sorteia aleatoriamente entre as vizinhanças ativas (7 com uma máquina real, 8 com mais de uma; ver seção C).
 
-Se uma vizinhança encontra melhora, o vetor $NL$ é reinicializado com todas as $7$ vizinhanças. Se não houver melhora, a vizinhança é removida de $NL$ em $\mathcal{O}(1)$ via `swap + pop_back`. O RVND encerra quando $NL$ fica vazio (ótimo local simultâneo em todas as 8 vizinhanças).
+Se uma vizinhança encontra melhora, o vetor $NL$ é reinicializado com todas as vizinhanças ativas. Se não houver melhora, a vizinhança é removida de $NL$ em $\mathcal{O}(1)$ via `swap + pop_back`. O RVND encerra quando $NL$ fica vazio (ótimo local simultâneo em todas as vizinhanças ativas).
 
 ---
 
-### **A. Movimentos Intra-Rota (Vizinhanças 1 a 3, 7 e 8)**
+### **A. Movimentos Intra-Rota (Vizinhanças 1 a 3, 7, 8 e 9)**
 
 Estes movimentos atuam dentro de cada rota $m \in \{0, \dots, \text{count\_machines}-1\}$ individualmente:
 
@@ -75,13 +75,24 @@ Estes movimentos transferem ou trocam jobs **entre máquinas paralelas distintas
 
 ---
 
-### **C. 2-Opt Block-Reversing (Vizinhanças 7 e 8)**
+### **C. 2-Opt Block-Reversing (Vizinhanças 7, 8 e 9)**
 
-#### **7 e 8. Reverse-k (`bestImprovementReverse(k)`, k=2 e k=3)**
-* **Operação**: Inverte in-place a ordem de um bloco de $k$ jobs consecutivos $[i, i+k)$ dentro da mesma rota. Vizinhança 7: $k=2$ (equivale a swap de adjacentes); Vizinhança 8: $k=3$.
-* **Simetria**: Simétrico (aplicar duas vezes volta ao original). Teste em $O(n)$ posições $i$ por rota, avaliação via `evaluateIntraRoute`.
-* **Aplicação**: Em máquinas com muitos empates de tardiness (platô), o desempate por $\varepsilon \cdot \sum C$ favorece ordens tipo SPT; inverter blocos curtos corrige trechos mal ordenados (ex.: processamentos 9,5,2 → 2,5,9 com $k=3$).
+Inverte in-place a ordem de um bloco de jobs consecutivos dentro da mesma rota (`bestImprovementReverse(k)`). O conjunto de vizinhanças ativas depende do número de máquinas reais (`count_machines`):
+
+| Cenário | Vizinhanças do RVND |
+|---|---|
+| `count_machines == 1` | 1, 2, 3, 4, 5, 6 e **9** (2-Opt completo) |
+| `count_machines > 1` | 1, 2, 3, 4, 5, 6, **7** (k=2) e **8** (k=3) |
+
+#### **7 e 8. Reverse-k (`k=2` e `k=3`) — mais de uma máquina real**
+* **Operação**: Inverte um bloco de exatamente $k$ jobs consecutivos $[i, i+k)$. Vizinhança 7: $k=2$ (equivale a swap de adjacentes); Vizinhança 8: $k=3$.
 * **Exemplo ($k=3$)**: $[D, 1, \mathbf{2, 3, 4}, 5, D] \rightarrow [D, 1, \mathbf{4, 3, 2}, 5, D]$.
+
+#### **9. 2-Opt completo (`k=0`) — uma única máquina real**
+* **Operação**: Inverte o bloco entre quaisquer posições $i < j$, **sem limite de tamanho** ($O(n^2)$ candidatos). Contém Reverse-2 e Reverse-3 como casos particulares, que por isso são removidos do RVND nesse cenário.
+* **Exemplo**: $[D, 1, \mathbf{2, 3, 4, 5}, 6, D] \rightarrow [D, 1, \mathbf{5, 4, 3, 2}, 6, D]$.
+
+**Aplicação (ambos)**: Simétrico (aplicar duas vezes volta ao original). Em máquinas com muitos empates de tardiness (platô), o desempate por $\varepsilon \cdot \sum C$ favorece ordens tipo SPT; inverter blocos corrige trechos mal ordenados.
 
 ---
 
