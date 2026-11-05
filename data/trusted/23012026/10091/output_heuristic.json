@@ -1,0 +1,137 @@
+{
+    "machines_scheduling": [
+        {
+            "count_jobs_not_allocated": 1,
+            "jobs": [
+                {
+                    "due_date_slot": 864,
+                    "end": 50,
+                    "job_id": 203,
+                    "processing_slots": 2,
+                    "release_date_slot": 0,
+                    "resource_id": 6,
+                    "start": 48,
+                    "sub_machine": 0
+                },
+                {
+                    "due_date_slot": 1152,
+                    "end": 54,
+                    "job_id": 132,
+                    "processing_slots": 3,
+                    "release_date_slot": 0,
+                    "resource_id": 5,
+                    "start": 51,
+                    "sub_machine": 0
+                },
+                {
+                    "due_date_slot": 1152,
+                    "end": 62,
+                    "job_id": 35,
+                    "processing_slots": 7,
+                    "release_date_slot": 0,
+                    "resource_id": 4,
+                    "start": 55,
+                    "sub_machine": 0
+                },
+                {
+                    "due_date_slot": 864,
+                    "end": 70,
+                    "job_id": 202,
+                    "processing_slots": 7,
+                    "release_date_slot": 0,
+                    "resource_id": 3,
+                    "start": 63,
+                    "sub_machine": 0
+                },
+                {
+                    "due_date_slot": 864,
+                    "end": 80,
+                    "job_id": 14,
+                    "processing_slots": 10,
+                    "release_date_slot": 0,
+                    "resource_id": 3,
+                    "start": 70,
+                    "sub_machine": 0
+                },
+                {
+                    "due_date_slot": 864,
+                    "end": 107,
+                    "job_id": 201,
+                    "processing_slots": 26,
+                    "release_date_slot": 0,
+                    "resource_id": 2,
+                    "start": 81,
+                    "sub_machine": 0
+                },
+                {
+                    "due_date_slot": 864,
+                    "end": 147,
+                    "job_id": 13,
+                    "processing_slots": 40,
+                    "release_date_slot": 0,
+                    "resource_id": 2,
+                    "start": 107,
+                    "sub_machine": 0
+                },
+                {
+                    "due_date_slot": 1152,
+                    "end": 195,
+                    "job_id": 8,
+                    "processing_slots": 47,
+                    "release_date_slot": 0,
+                    "resource_id": 0,
+                    "start": 148,
+                    "sub_machine": 0
+                },
+                {
+                    "due_date_slot": 1152,
+                    "end": 242,
+                    "job_id": 7,
+                    "processing_slots": 47,
+                    "release_date_slot": 0,
+                    "resource_id": 0,
+                    "start": 195,
+                    "sub_machine": 0
+                },
+                {
+                    "due_date_slot": 864,
+                    "end": 312,
+                    "job_id": 11,
+                    "processing_slots": 69,
+                    "release_date_slot": 0,
+                    "resource_id": 1,
+                    "start": 243,
+                    "sub_machine": 0
+                },
+                {
+                    "due_date_slot": 864,
+                    "end": -1,
+                    "job_id": 9,
+                    "processing_slots": 86,
+                    "release_date_slot": 0,
+                    "resource_id": 1,
+                    "start": -1,
+                    "sub_machine": 0
+                }
+            ],
+            "machine_id": 4,
+            "objective_function": 2872.45926183844,
+            "solve_time_seconds": 0.003703183,
+            "heuristic_mean_fo": 2872.45926183844,
+            "heuristic_mean_unallocated": 1.0,
+            "heuristic_mean_time_seconds": 0.0044717775,
+            "heuristic_runs_fo": [
+                2872.45926183844,
+                2872.45926183844,
+                2872.45926183844,
+                2872.45926183844,
+                2872.45926183844,
+                2872.45926183844,
+                2872.45926183844,
+                2872.45926183844,
+                2872.45926183844,
+                2872.45926183844
+            ]
+        }
+    ]
+}
