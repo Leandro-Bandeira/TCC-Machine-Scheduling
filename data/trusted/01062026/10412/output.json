@@ -1,0 +1,113 @@
+{
+  "machines_scheduling": [
+    {
+      "machine_id": 0,
+      "objective_function": 0.4181273816004355,
+      "warm_start_value": 0.4181273816004355,
+      "mip_gap": 0.0,
+      "count_jobs_not_allocated": 0.0,
+      "solve_time_seconds": 83.786,
+      "termination_condition": "optimal",
+      "jobs": [
+        {
+          "job_id": 6,
+          "start": 98,
+          "end": 164,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 9,
+          "start": 823,
+          "end": 938,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 18,
+          "start": 801,
+          "end": 897,
+          "sub_machine": 1
+        },
+        {
+          "job_id": 53,
+          "start": 706,
+          "end": 752,
+          "sub_machine": 1
+        },
+        {
+          "job_id": 58,
+          "start": 624,
+          "end": 658,
+          "sub_machine": 1
+        },
+        {
+          "job_id": 62,
+          "start": 659,
+          "end": 705,
+          "sub_machine": 1
+        },
+        {
+          "job_id": 74,
+          "start": 651,
+          "end": 734,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 107,
+          "start": 624,
+          "end": 649,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 109,
+          "start": 753,
+          "end": 799,
+          "sub_machine": 1
+        },
+        {
+          "job_id": 175,
+          "start": 48,
+          "end": 107,
+          "sub_machine": 1
+        },
+        {
+          "job_id": 176,
+          "start": 48,
+          "end": 96,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 179,
+          "start": 336,
+          "end": 348,
+          "sub_machine": 1
+        },
+        {
+          "job_id": 220,
+          "start": 738,
+          "end": 821,
+          "sub_machine": 0
+        }
+      ]
+    },
+    {
+      "machine_id": 1,
+      "objective_function": null,
+      "warm_start_value": 0.3847883650685933,
+      "mip_gap": null,
+      "count_jobs_not_allocated": 56,
+      "solve_time_seconds": 108.86,
+      "termination_condition": "mem_limit",
+      "jobs": []
+    },
+    {
+      "machine_id": 3,
+      "objective_function": null,
+      "warm_start_value": 0.38339832592335016,
+      "mip_gap": null,
+      "count_jobs_not_allocated": 30,
+      "solve_time_seconds": 0.006,
+      "termination_condition": "mem_limit",
+      "jobs": []
+    }
+  ]
+}
