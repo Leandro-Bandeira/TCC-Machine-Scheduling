@@ -66,6 +66,8 @@ FIELDNAMES = [
     "best_heuristic_fo",
     "fo_diff",
     "fo_diff_pct",
+    "real_unallocated",
+    "heuristic_unallocated",
     "real_solution_time_seconds",
     "mean_heuristic_time_seconds",
     "time_diff_seconds",
@@ -114,15 +116,15 @@ def read_scheduling_json(
 
 def read_heuristic_json(
     heuristic_file: Path, machine_id: int
-) -> tuple[float | None, float | None, float | None]:
+) -> tuple[float | None, float | None, float | None, float | None]:
     """
-    Lê `(best_fo, mean_fo, mean_time_seconds)` de `output_heuristic.json`.
+    Lê `(best_fo, mean_fo, mean_unallocated, mean_time_seconds)` de `output_heuristic.json`.
 
-    Preserva resultados já gerados (inclusive se não tiverem médias, usando `best_fo`
-    e `solve_time_seconds` como fallback para não refazer execuções existentes).
+    Preserva resultados já gerados (inclusive se não tiverem médias, usando `best_fo`,
+    `count_jobs_not_allocated` e `solve_time_seconds` como fallback para não refazer execuções existentes).
     """
     if not heuristic_file.exists():
-        return None, None, None
+        return None, None, None, None
     try:
         with open(heuristic_file, encoding="utf-8") as f:
             data = json.load(f)
@@ -130,17 +132,20 @@ def read_heuristic_json(
             if m.get("machine_id") == machine_id:
                 best_fo = m.get("objective_function")
                 if best_fo is None:
-                    return None, None, None
+                    return None, None, None, None
                 mean_fo = m.get("heuristic_mean_fo")
                 if mean_fo is None:
                     mean_fo = best_fo
+                mean_unallocated = m.get("heuristic_mean_unallocated")
+                if mean_unallocated is None:
+                    mean_unallocated = m.get("count_jobs_not_allocated", 0)
                 mean_time = m.get("heuristic_mean_time_seconds")
                 if mean_time is None:
                     mean_time = m.get("solve_time_seconds")
-                return best_fo, mean_fo, mean_time
+                return best_fo, mean_fo, mean_unallocated, mean_time
     except Exception as e:
         print(f"  [erro ao ler {heuristic_file}]: {e}")
-    return None, None, None
+    return None, None, None, None
 
 
 def run_and_save_baseline_for_lote(
@@ -278,12 +283,12 @@ def collect_comparisons(
             start_slots = mach.get("start_slots", [])
             h_horizon = start_slots[-1] if start_slots else 0
 
-            real_solution_fo, real_solution_time, _ = read_scheduling_json(
+            real_solution_fo, real_solution_time, real_unallocated = read_scheduling_json(
                 output_baseline_file, machine_id
             )
 
             # Preserva sempre o resultado já existente da heurística (heuristicxmip)
-            best_fo, mean_fo, mean_time = read_heuristic_json(
+            best_fo, mean_fo, heuristic_unallocated, mean_time = read_heuristic_json(
                 output_heuristic_file, machine_id
             )
 
@@ -293,7 +298,7 @@ def collect_comparisons(
                 )
                 try:
                     run_heuristic(input_file, machine_id)
-                    best_fo, mean_fo, mean_time = read_heuristic_json(
+                    best_fo, mean_fo, heuristic_unallocated, mean_time = read_heuristic_json(
                         output_heuristic_file, machine_id
                     )
                 except (RuntimeError, subprocess.CalledProcessError) as e:
@@ -326,6 +331,8 @@ def collect_comparisons(
                     "best_heuristic_fo": best_fo,
                     "fo_diff": fo_diff,
                     "fo_diff_pct": fo_diff_pct,
+                    "real_unallocated": real_unallocated,
+                    "heuristic_unallocated": heuristic_unallocated,
                     "real_solution_time_seconds": real_solution_time,
                     "mean_heuristic_time_seconds": mean_time,
                     "time_diff_seconds": time_diff,
@@ -335,6 +342,7 @@ def collect_comparisons(
                 f"[{dt}/{status}] {machine_name} (id={machine_id})"
                 f" | jobs={count_jobs} mach={count_machines} H={h_horizon}"
                 f" | fo: real={real_solution_fo:.4f} mean={mean_fo:.4f} best={best_fo:.4f} diff={fo_diff:+.4f} ({fo_diff_pct:+.2f}%)"
+                f" | unallocated: real={real_unallocated} heur={heuristic_unallocated}"
                 f" | tempo: real={real_solution_time:.4f}s mean={mean_time:.4f}s"
             )
 
