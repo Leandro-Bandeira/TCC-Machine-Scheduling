@@ -207,10 +207,20 @@ class TimeIndex:
         model.penalty = sum(W * model.y[job.id] for job in jobs_data)
         epsilon = 1 / W
         model.sum_completion_time = sum(model.C[job.id] for job in jobs_data)
+        machine_tie_breaker = 0
+        if not isinstance(self, ArcTimeIndex) and self.count_machines > 1:
+            epsilon_m = epsilon / (len(jobs_data) * self.count_machines + 1)
+            machine_tie_breaker = epsilon_m * sum(
+                m * model.x[job.id, t, m]
+                for job in jobs_data
+                for t in self.time_slots_job[job.id]
+                for m in range(self.count_machines)
+            )
         model.objective = pyo.Objective(
             expr=model.sum_tardiness
             + model.penalty
-            + epsilon * model.sum_completion_time,
+            + epsilon * model.sum_completion_time
+            + machine_tie_breaker,
             sense=pyo.minimize,
         )
 
@@ -854,9 +864,60 @@ class ArcTimeIndex(TimeIndex):
                 setv(model.rexit, (r, jid, m))
         return ok
 
+    def _add_lane_symmetry_breaking(self, model) -> None:
+        """Quebra simetria entre lanes idênticas ordenando-as pelo rank do 1º job (vazias ao final)."""
+        M = self.count_machines
+        if M <= 1 or not self._active:
+            return
+        S = self.time_slots_job
+        SRC = self.SRC
+        N = len(self._active)
+        rank = {j.id: idx + 1 for idx, j in enumerate(self._active)}
+
+        first_rank = [
+            pyo.quicksum(
+                rank[j.id] * model.srcarc[j.id, t, m]
+                for j in self._active
+                for t in S[j.id]
+            )
+            + (N + 1) * model.exit_arc[SRC, m]
+            for m in range(M)
+        ]
+
+        model.lane_sym = pyo.ConstraintList()
+        for m in range(M - 1):
+            model.lane_sym.add(model.exit_arc[SRC, m] <= model.exit_arc[SRC, m + 1])
+            model.lane_sym.add(first_rank[m] <= first_rank[m + 1])
+
     def _apply_warm_start(self, heuristic_jobs: list[dict]):
-        super()._apply_warm_start(heuristic_jobs)
         model = self.model
+        rank = {j.id: idx + 1 for idx, j in enumerate(self._active)}
+        N = len(self._active)
+
+        # Reordena as lanes do warm start para respeitar _add_lane_symmetry_breaking
+        if self.count_machines > 1 and self._active:
+            lanes_tmp: dict[int, list[tuple[int, int]]] = defaultdict(list)
+            for hj in heuristic_jobs:
+                jid, start, m = hj.get("job_id"), hj.get("start"), hj.get("sub_machine")
+                if start is not None and start != -1 and m is not None and m != -1:
+                    if (jid, start, m) in model.indexes:
+                        lanes_tmp[m].append((start, jid))
+            order = sorted(
+                range(self.count_machines),
+                key=lambda m: rank[min(lanes_tmp[m])[1]] if lanes_tmp.get(m) else N + 1,
+            )
+            lane_map = {old_m: new_m for new_m, old_m in enumerate(order)}
+            heuristic_jobs = [
+                {
+                    **hj,
+                    "sub_machine": lane_map[hj["sub_machine"]]
+                    if hj.get("sub_machine") in lane_map
+                    else hj.get("sub_machine"),
+                }
+                for hj in heuristic_jobs
+            ]
+
+        super()._apply_warm_start(heuristic_jobs)
 
         placed: dict[int, tuple[int, int]] = {}
         for hj in heuristic_jobs:
@@ -950,6 +1011,7 @@ class ArcTimeIndex(TimeIndex):
             jobs_data, rule=self._completion_time_rule
         )
         self._add_flow_constraints(model)
+        self._add_lane_symmetry_breaking(model)
 
         # Restrição de recurso entre lanes: rede de fluxo por recurso (arcos (i,m)->(j,m',t))
         if M > 1:
