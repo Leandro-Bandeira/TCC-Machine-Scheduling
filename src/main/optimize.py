@@ -668,6 +668,192 @@ class ArcTimeIndex(TimeIndex):
                 setv(model.exit_arc, (jid, m))
         return ok
 
+    # ------------------------------------------------------------------
+    # Restrição de recurso via fluxo: por recurso, um único caminho no tempo que
+    # percorre todos os seus jobs (em qualquer lane). Arco (i,m)->(j,m',t):
+    #   m == m' : sem folga extra (a lane já impõe setup/capacidade);
+    #   m != m' : folga big_setup entre o fim de i e o início de j.
+    # Substitui a restrição par-a-par (i,j,t,m).
+    # ------------------------------------------------------------------
+    def _build_resource_networks(self) -> None:
+        S = self.time_slots_job
+        M = self.count_machines
+        BIG = self.big_setup
+        groups: dict = defaultdict(list)
+        for j in self._active:
+            groups[j.resource_id].append(j)
+
+        nets: dict = {}
+        for r, G in groups.items():
+            if len(G) < 2:
+                continue
+            minarr = {j.id: S[j.id][0] + j.processing_slots for j in G}
+            pts = {
+                (j.id, m): {t + j.processing_slots for t in S[j.id]}
+                for j in G
+                for m in range(M)
+            }
+            arcs = []
+            in_arcs: dict = defaultdict(list)
+            out_arcs: dict = defaultdict(list)
+            for i in G:
+                for j in G:
+                    if i.id == j.id:
+                        continue
+                    for m in range(M):
+                        for m2 in range(M):
+                            g = 0 if m == m2 else BIG
+                            for t in S[j.id]:
+                                d = t - g
+                                if d >= minarr[i.id]:
+                                    key = (r, i.id, m, j.id, m2, t)
+                                    arcs.append(key)
+                                    pts[(i.id, m)].add(d)
+                                    in_arcs[(j.id, m2, t)].append(key)
+                                    out_arcs[(i.id, m, d)].append(key)
+            pts_sorted = {k: sorted(v) for k, v in pts.items()}
+            src_pts = sorted({t for j in G for t in S[j.id]})
+            src_out: dict = defaultdict(list)
+            for j in G:
+                for t in S[j.id]:
+                    src_out[t].append(j.id)
+            nets[r] = {
+                "G": G,
+                "arcs": arcs,
+                "in_arcs": in_arcs,
+                "out_arcs": out_arcs,
+                "pts": pts_sorted,
+                "pidx": {k: {p: n for n, p in enumerate(v)} for k, v in pts_sorted.items()},
+                "src_pts": src_pts,
+                "src_pidx": {p: n for n, p in enumerate(src_pts)},
+                "src_out": src_out,
+            }
+        self._res_nets = nets
+        print(
+            f"  [arc] recursos: {len(nets)} redes, "
+            f"{sum(len(n['arcs']) for n in nets.values())} arcos (i,m,j,m',t)"
+        )
+
+    def _declare_resource_vars(self, model) -> None:
+        M = self.count_machines
+        S = self.time_slots_job
+        SRC = self.SRC
+        rarc, rsrc, ridle, rexit = [], [], [], []
+        for r, net in self._res_nets.items():
+            rarc.extend(net["arcs"])
+            for j in net["G"]:
+                for t in S[j.id]:
+                    for m in range(M):
+                        rsrc.append((r, j.id, t, m))
+            for (i, m), pts in net["pts"].items():
+                ridle.extend((r, i, m, k) for k in range(len(pts) - 1))
+                rexit.append((r, i, m))
+            ridle.extend((r, SRC, -1, k) for k in range(len(net["src_pts"]) - 1))
+            rexit.append((r, SRC, -1))
+        model.rarc_index = pyo.Set(initialize=rarc, dimen=6)
+        model.rarc = pyo.Var(model.rarc_index, bounds=(0, 1))
+        model.rsrc_index = pyo.Set(initialize=rsrc, dimen=4)
+        model.rsrc = pyo.Var(model.rsrc_index, bounds=(0, 1))
+        model.ridle_index = pyo.Set(initialize=ridle, dimen=4)
+        model.ridle = pyo.Var(model.ridle_index, bounds=(0, 1))
+        model.rexit_index = pyo.Set(initialize=rexit, dimen=3)
+        model.rexit = pyo.Var(model.rexit_index, bounds=(0, 1))
+
+    def _add_resource_flow_constraints(self, model) -> None:
+        M = self.count_machines
+        S = self.time_slots_job
+        SRC = self.SRC
+        model.rflow = pyo.ConstraintList()
+        model.rlink = pyo.ConstraintList()
+        for r, net in self._res_nets.items():
+            # Cadeia da origem (1 unidade de fluxo por recurso)
+            src_pts = net["src_pts"]
+            last = len(src_pts) - 1
+            for k, p in enumerate(src_pts):
+                inflow = 1 if k == 0 else model.ridle[r, SRC, -1, k - 1]
+                out = [model.rsrc[r, j, p, m] for j in net["src_out"][p] for m in range(M)]
+                out.append(model.ridle[r, SRC, -1, k] if k < last else model.rexit[r, SRC, -1])
+                model.rflow.add(inflow == pyo.quicksum(out))
+
+            # Nós (i, m, p)
+            for (i, m), pts in net["pts"].items():
+                job = self._job_by_id[i]
+                arrivals: dict = defaultdict(list)
+                for t in S[i]:
+                    k = net["pidx"][(i, m)][t + job.processing_slots]
+                    arrivals[k].append(model.rsrc[r, i, t, m])
+                    arrivals[k].extend(model.rarc[a] for a in net["in_arcs"].get((i, m, t), []))
+                last = len(pts) - 1
+                for k, p in enumerate(pts):
+                    inflow = list(arrivals.get(k, []))
+                    if k > 0:
+                        inflow.append(model.ridle[r, i, m, k - 1])
+                    out = [model.rarc[a] for a in net["out_arcs"].get((i, m, p), [])]
+                    out.append(model.ridle[r, i, m, k] if k < last else model.rexit[r, i, m])
+                    model.rflow.add(pyo.quicksum(inflow) == pyo.quicksum(out))
+
+            # Ligação: x[j,t,m] = fluxo do recurso que inicia j em t na lane m
+            for j in net["G"]:
+                for t in S[j.id]:
+                    for m in range(M):
+                        model.rlink.add(
+                            model.x[j.id, t, m]
+                            == model.rsrc[r, j.id, t, m]
+                            + pyo.quicksum(
+                                model.rarc[a] for a in net["in_arcs"].get((j.id, m, t), [])
+                            )
+                        )
+
+    def _set_resource_path(self, r, placed: dict) -> bool:
+        """Grava o caminho do recurso r a partir de placed {job_id: (start, lane)}."""
+        model = self.model
+        net = self._res_nets[r]
+        SRC = self.SRC
+        BIG = self.big_setup
+        ok = True
+
+        def setv(var, key) -> None:
+            nonlocal ok
+            if key in var:
+                var[key].value = 1.0
+            else:
+                ok = False
+
+        seq = sorted((placed[j.id][0], j.id, placed[j.id][1]) for j in net["G"] if j.id in placed)
+        n_src = len(net["src_pts"])
+        if not seq:
+            for k in range(n_src - 1):
+                setv(model.ridle, (r, SRC, -1, k))
+            setv(model.rexit, (r, SRC, -1))
+            return ok
+
+        t1, j1, m1 = seq[0]
+        k1 = net["src_pidx"].get(t1)
+        if k1 is None:
+            return False
+        for k in range(k1):
+            setv(model.ridle, (r, SRC, -1, k))
+        setv(model.rsrc, (r, j1, t1, m1))
+
+        for idx, (t, jid, m) in enumerate(seq):
+            ka = net["pidx"][(jid, m)].get(t + self._job_by_id[jid].processing_slots)
+            if ka is None:
+                return False
+            if idx + 1 < len(seq):
+                t2, j2, m2 = seq[idx + 1]
+                g = 0 if m == m2 else BIG
+                kd = net["pidx"][(jid, m)].get(t2 - g)
+                if kd is None or kd < ka:
+                    return False
+                for k in range(ka, kd):
+                    setv(model.ridle, (r, jid, m, k))
+                setv(model.rarc, (r, jid, m, j2, m2, t2))
+            else:
+                for k in range(ka, len(net["pts"][(jid, m)]) - 1):
+                    setv(model.ridle, (r, jid, m, k))
+                setv(model.rexit, (r, jid, m))
+        return ok
+
     def _apply_warm_start(self, heuristic_jobs: list[dict]):
         super()._apply_warm_start(heuristic_jobs)
         model = self.model
@@ -684,9 +870,19 @@ class ArcTimeIndex(TimeIndex):
         for jid, (start, m) in placed.items():
             lanes[m].append((start, jid))
 
-        for var in (model.arc, model.srcarc, model.idle, model.exit_arc):
+        res_vars = (
+            (model.rarc, model.rsrc, model.ridle, model.rexit)
+            if hasattr(model, "rarc")
+            else ()
+        )
+        for var in (model.arc, model.srcarc, model.idle, model.exit_arc, *res_vars):
             for v in var.values():
                 v.value = 0.0
+
+        if res_vars:
+            for r in self._res_nets:
+                if not self._set_resource_path(r, placed):
+                    print(f"  [Warm Start] Aviso: caminho do recurso {r} não representável.")
 
         for m in range(self.count_machines):
             seq = [(jid, t) for t, jid in sorted(lanes.get(m, []))]
@@ -755,22 +951,11 @@ class ArcTimeIndex(TimeIndex):
         )
         self._add_flow_constraints(model)
 
+        # Restrição de recurso entre lanes: rede de fluxo por recurso (arcos (i,m)->(j,m',t))
         if M > 1:
-            resource_groups = defaultdict(list)
-            for job in jobs_data:
-                resource_groups[job.resource_id].append(job)
-            resource_indexes = [
-                (resource_id, job_i, job_j, t, m)
-                for resource_id, resource_jobs in resource_groups.items()
-                for job_i in resource_jobs
-                for job_j in resource_jobs
-                if job_i.id != job_j.id
-                for t in S[job_i.id]
-                for m in range(M)
-            ]
-            model.resource_constraint = pyo.Constraint(
-                resource_indexes, rule=self._resource_constraint_rule
-            )
+            self._build_resource_networks()
+            self._declare_resource_vars(model)
+            self._add_resource_flow_constraints(model)
 
         self.minimize_sum_tardiness(model, time_slots, jobs_data)
 
