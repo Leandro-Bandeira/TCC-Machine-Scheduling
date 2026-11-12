@@ -512,12 +512,288 @@ class TimeIndex:
             return pyo.value(model.objective_expr)
 
 
+class ArcTimeIndex(TimeIndex):
+    """
+    Formulação arco-indexada no tempo, por lane (rede espaço-tempo, estilo Pessoa et al.).
+
+    Cada lane m é um caminho unitário numa rede com:
+      - SRC: cadeia de ociosidade da origem (a lane ainda não iniciou nenhum job);
+      - (i, p): nó "último job processado = i, lane livre a partir do instante p";
+      - arco (i -> j, t, m): j inicia em t na lane m logo após i (setup s_ij embutido:
+        sai do nó (i, t - s_ij) e chega ao nó (j, t + p_j));
+      - arcos de ociosidade (i, k) -> (i, k+1) e arcos de saída para o sink.
+    As variáveis de início x_{j,t,m} são ligadas ao fluxo de entrada em j. Restrições de
+    capacidade e de setup entre jobs consecutivos ficam implícitas na rede; a restrição de
+    recurso entre lanes (4.6) é mantida sobre x. Arcos são contínuos em [0, 1] (apenas x e y
+    são binárias). FO única, idêntica à da formulação TimeIndex. Sem quebra de simetria.
+    """
+
+    SRC = -1
+
+    def _setup_time(self, i_id: int, j_id: int) -> int:
+        return self.setup_data.get(str(i_id), {}).get(str(j_id), 0)
+
+    def _build_network(self) -> None:
+        S = self.time_slots_job
+        self._job_by_id = {j.id: j for j in self.jobs_data}
+        active = [j for j in self.jobs_data if S[j.id]]
+        self._active = active
+
+        min_arrival = {j.id: S[j.id][0] + j.processing_slots for j in active}
+        points = {j.id: {t + j.processing_slots for t in S[j.id]} for j in active}
+        arcs: list[tuple[int, int, int, int]] = []
+        in_arcs: dict[tuple[int, int], list[int]] = defaultdict(list)
+        out_arcs: dict[tuple[int, int], list[tuple[int, int]]] = defaultdict(list)
+
+        for i in active:
+            for j in active:
+                if i.id == j.id:
+                    continue
+                s_ij = self._setup_time(i.id, j.id)
+                for t in S[j.id]:
+                    d = t - s_ij  # instante em que a lane sai do nó de i
+                    if d >= min_arrival[i.id]:
+                        arcs.append((i.id, j.id, t, d))
+                        points[i.id].add(d)
+                        in_arcs[(j.id, t)].append(i.id)
+                        out_arcs[(i.id, d)].append((j.id, t))
+
+        self._arcs = arcs
+        self._in_arcs = in_arcs
+        self._out_arcs = out_arcs
+        self._pts = {jid: sorted(pts) for jid, pts in points.items()}
+        self._pidx = {
+            jid: {p: k for k, p in enumerate(pts)} for jid, pts in self._pts.items()
+        }
+        self._src_pts = sorted({t for j in active for t in S[j.id]})
+        self._src_pidx = {p: k for k, p in enumerate(self._src_pts)}
+        src_out: dict[int, list[int]] = defaultdict(list)
+        for j in active:
+            for t in S[j.id]:
+                src_out[t].append(j.id)
+        self._src_out = src_out
+
+    def _add_flow_constraints(self, model) -> None:
+        S = self.time_slots_job
+        M = self.count_machines
+        SRC = self.SRC
+        arc, srcarc, idle, ex = model.arc, model.srcarc, model.idle, model.exit_arc
+        model.flow = pyo.ConstraintList()
+        model.link = pyo.ConstraintList()
+
+        for m in range(M):
+            # Cadeia da origem: 1 unidade de fluxo por lane
+            last = len(self._src_pts) - 1
+            for k, p in enumerate(self._src_pts):
+                inflow = 1 if k == 0 else idle[SRC, k - 1, m]
+                out = [srcarc[j, p, m] for j in self._src_out[p]]
+                out.append(idle[SRC, k, m] if k < last else ex[SRC, m])
+                model.flow.add(inflow == pyo.quicksum(out))
+
+            for jid, pts in self._pts.items():
+                job = self._job_by_id[jid]
+                last = len(pts) - 1
+                arrivals: dict[int, list] = defaultdict(list)
+                for t in S[jid]:
+                    k = self._pidx[jid][t + job.processing_slots]
+                    arrivals[k].append(srcarc[jid, t, m])
+                    arrivals[k].extend(
+                        arc[i, jid, t, m] for i in self._in_arcs.get((jid, t), [])
+                    )
+                for k, p in enumerate(pts):
+                    inflow = list(arrivals.get(k, []))
+                    if k > 0:
+                        inflow.append(idle[jid, k - 1, m])
+                    out = [
+                        arc[jid, j2, t2, m]
+                        for (j2, t2) in self._out_arcs.get((jid, p), [])
+                    ]
+                    out.append(idle[jid, k, m] if k < last else ex[jid, m])
+                    model.flow.add(pyo.quicksum(inflow) == pyo.quicksum(out))
+
+            # Ligação x_{j,t,m} = fluxo que entra em j iniciando em t na lane m
+            for j in self._active:
+                for t in S[j.id]:
+                    model.link.add(
+                        model.x[j.id, t, m]
+                        == srcarc[j.id, t, m]
+                        + pyo.quicksum(
+                            arc[i, j.id, t, m]
+                            for i in self._in_arcs.get((j.id, t), [])
+                        )
+                    )
+
+    def _set_lane_path(self, m: int, seq: list[tuple[int, int]]) -> bool:
+        """Grava no modelo o caminho da lane m para a sequência [(job_id, start)] ordenada."""
+        model = self.model
+        SRC = self.SRC
+        ok = True
+
+        def setv(var, key) -> None:
+            nonlocal ok
+            if key in var:
+                var[key].value = 1.0
+            else:
+                ok = False
+
+        if not seq:
+            for k in range(len(self._src_pts) - 1):
+                setv(model.idle, (SRC, k, m))
+            setv(model.exit_arc, (SRC, m))
+            return ok
+
+        j1, t1 = seq[0]
+        k1 = self._src_pidx.get(t1)
+        if k1 is None:
+            return False
+        for k in range(k1):
+            setv(model.idle, (SRC, k, m))
+        setv(model.srcarc, (j1, t1, m))
+
+        for idx, (jid, t) in enumerate(seq):
+            ka = self._pidx[jid].get(t + self._job_by_id[jid].processing_slots)
+            if ka is None:
+                return False
+            if idx + 1 < len(seq):
+                j2, t2 = seq[idx + 1]
+                kd = self._pidx[jid].get(t2 - self._setup_time(jid, j2))
+                if kd is None or kd < ka:
+                    return False
+                for k in range(ka, kd):
+                    setv(model.idle, (jid, k, m))
+                setv(model.arc, (jid, j2, t2, m))
+            else:
+                for k in range(ka, len(self._pts[jid]) - 1):
+                    setv(model.idle, (jid, k, m))
+                setv(model.exit_arc, (jid, m))
+        return ok
+
+    def _apply_warm_start(self, heuristic_jobs: list[dict]):
+        super()._apply_warm_start(heuristic_jobs)
+        model = self.model
+
+        placed: dict[int, tuple[int, int]] = {}
+        for hj in heuristic_jobs:
+            jid, start, m = hj.get("job_id"), hj.get("start"), hj.get("sub_machine")
+            if start is None or start == -1 or m is None or m == -1:
+                continue
+            if (jid, start, m) in model.indexes:
+                placed[jid] = (start, m)
+
+        lanes: dict[int, list[tuple[int, int]]] = defaultdict(list)
+        for jid, (start, m) in placed.items():
+            lanes[m].append((start, jid))
+
+        for var in (model.arc, model.srcarc, model.idle, model.exit_arc):
+            for v in var.values():
+                v.value = 0.0
+
+        for m in range(self.count_machines):
+            seq = [(jid, t) for t, jid in sorted(lanes.get(m, []))]
+            if not self._set_lane_path(m, seq):
+                print(
+                    f"  [Warm Start] Aviso: caminho da lane {m} não representável na rede de arcos."
+                )
+
+    def optimize(
+        self,
+        use_gurobi: bool = False,
+        use_warm_start: bool = False,
+        heuristic_jobs: list[dict] | None = None,
+        warm_start_value: float | None = None,
+    ):
+        self._use_gurobi = use_gurobi
+        model = self.model
+        jobs_data = self.jobs_data
+        M = self.count_machines
+        S = self.time_slots_job
+        time_slots = self.machine_data.start_slots
+        SRC = self.SRC
+
+        t0 = perf_counter()
+        self._build_network()
+        print(
+            f"  [arc] rede: {len(self._arcs)} arcos de job por lane, "
+            f"{sum(len(p) for p in self._pts.values())} nós de job (build {perf_counter() - t0:.2f}s)"
+        )
+
+        indexes = [(j, t, m) for j, slots in S.items() for t in slots for m in range(M)]
+        model.indexes = pyo.Set(initialize=indexes, dimen=3)
+        model.jobs_id = pyo.Set(initialize=[job.id for job in jobs_data])
+        model.x = pyo.Var(model.indexes, domain=pyo.Binary, name="x")
+        model.y = pyo.Var(model.jobs_id, domain=pyo.Binary, name="y")
+        model.C = pyo.Var(model.jobs_id, domain=pyo.NonNegativeReals, name="completion")
+
+        # Variáveis de fluxo (contínuas em [0, 1])
+        model.arc_index = pyo.Set(
+            initialize=[(i, j, t, m) for (i, j, t, _d) in self._arcs for m in range(M)],
+            dimen=4,
+        )
+        model.arc = pyo.Var(model.arc_index, bounds=(0, 1))
+        model.src_index = pyo.Set(
+            initialize=[(j.id, t, m) for j in self._active for t in S[j.id] for m in range(M)],
+            dimen=3,
+        )
+        model.srcarc = pyo.Var(model.src_index, bounds=(0, 1))
+        idle_keys = [
+            (jid, k, m)
+            for jid, pts in self._pts.items()
+            for k in range(len(pts) - 1)
+            for m in range(M)
+        ] + [(SRC, k, m) for k in range(len(self._src_pts) - 1) for m in range(M)]
+        model.idle_index = pyo.Set(initialize=idle_keys, dimen=3)
+        model.idle = pyo.Var(model.idle_index, bounds=(0, 1))
+        exit_keys = [(jid, m) for jid in self._pts for m in range(M)] + [
+            (SRC, m) for m in range(M)
+        ]
+        model.exit_index = pyo.Set(initialize=exit_keys, dimen=2)
+        model.exit_arc = pyo.Var(model.exit_index, bounds=(0, 1))
+
+        model.single_start = pyo.Constraint(jobs_data, rule=self._single_start_rule)
+        model.completion_time = pyo.Constraint(
+            jobs_data, rule=self._completion_time_rule
+        )
+        self._add_flow_constraints(model)
+
+        if M > 1:
+            resource_groups = defaultdict(list)
+            for job in jobs_data:
+                resource_groups[job.resource_id].append(job)
+            resource_indexes = [
+                (resource_id, job_i, job_j, t, m)
+                for resource_id, resource_jobs in resource_groups.items()
+                for job_i in resource_jobs
+                for job_j in resource_jobs
+                if job_i.id != job_j.id
+                for t in S[job_i.id]
+                for m in range(M)
+            ]
+            model.resource_constraint = pyo.Constraint(
+                resource_indexes, rule=self._resource_constraint_rule
+            )
+
+        self.minimize_sum_tardiness(model, time_slots, jobs_data)
+
+        if use_warm_start and heuristic_jobs:
+            self._apply_warm_start(heuristic_jobs)
+            self.warm_start_value = warm_start_value
+
+        if self._use_gurobi:
+            self._solve_with_gurobi(model, warmstart=use_warm_start)
+        else:
+            self._solve_with_highs(model, warmstart=use_warm_start)
+
+        print(self.termination_condition)
+        print(f"{self.objective_type}: {self.objective_value} (gap={self.mip_gap})")
+
+
 def main(
     data_input_path: Path,
     data_output_path: Path,
     only_machines: list[str] | None = None,
     use_gurobi: bool = False,
     use_warm_start: bool = False,
+    formulation_arc: bool = False,
 ):
     with open(data_input_path, "r") as f:
         data = json.load(f)
@@ -565,7 +841,8 @@ def main(
         machine = Machine.from_dict(machine)
         machine_setups = setups_data.get(str(machine_id), {})
         machine_resources = resources_data.get(str(machine_id), {})
-        time_index_model = TimeIndex(
+        model_cls = ArcTimeIndex if formulation_arc else TimeIndex
+        time_index_model = model_cls(
             machine=machine,
             jobs=jobs_machine,
             setup_data=machine_setups,
@@ -634,6 +911,12 @@ def parse_args() -> argparse.Namespace:
         default=False,
         help="Usa a solução de output_heuristic.json para inicializar o solver (warm start).",
     )
+    parser.add_argument(
+        "--formulation-arc",
+        action="store_true",
+        default=False,
+        help="Usa a formulação arco-indexada no tempo por lane (ArcTimeIndex) em vez da time-index.",
+    )
     return parser.parse_args()
 
 
@@ -676,4 +959,5 @@ if __name__ == "__main__":
             only_machines=args.only_machines,
             use_gurobi=args.use_gurobi,
             use_warm_start=args.use_warm_start,
+            formulation_arc=args.formulation_arc,
         )
