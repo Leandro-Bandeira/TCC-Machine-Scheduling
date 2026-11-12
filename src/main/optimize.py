@@ -188,29 +188,26 @@ class TimeIndex:
             expr=model.objective_expr + model.penalty, sense=pyo.minimize
         )
 
-    def _tardiness_rule(self, model, job: Job):
-        return model.Tardiness[job.id] >= model.C[job.id] - job.due_date_slot
-
     def minimize_sum_tardiness(
         self, model, time_slots: list[int], jobs_data: list[Job]
     ):
         self.objective_type = "sum_tardiness"
-        model.Tardiness = pyo.Var(
-            model.jobs_id, domain=pyo.NonNegativeReals, name="completion"
-        )
-        model.tardiness_constraint = pyo.Constraint(
-            jobs_data, rule=self._tardiness_rule
-        )
-        model.sum_tardiness = sum(model.Tardiness[job.id] for job in jobs_data)
         # O W é o valor da pior situação possivel, nesse caso, todos os jobs atrasassem até o ultimo slot
         W = len(jobs_data) * time_slots[-1] + 1
-        model.penalty = sum(W * model.y[job.id] for job in jobs_data)
         epsilon = 1 / W
-        model.sum_completion_time = sum(model.C[job.id] for job in jobs_data)
+        model.penalty = sum(W * model.y[job.id] for job in jobs_data)
         model.objective = pyo.Objective(
-            expr=model.sum_tardiness
-            + model.penalty
-            + epsilon * model.sum_completion_time,
+            expr=sum(
+                (
+                    max(0, t + job.processing_slots - job.due_date_slot)
+                    + epsilon * (t + job.processing_slots)
+                )
+                * model.x[job.id, t, m]
+                for job in jobs_data
+                for t in self.time_slots_job[job.id]
+                for m in range(self.count_machines)
+            )
+            + model.penalty,
             sense=pyo.minimize,
         )
 
@@ -292,17 +289,15 @@ class TimeIndex:
         #     f"  [Warm Start] Inicializando modelo Pyomo com {len(heuristic_jobs)} jobs da heurística..."
         # )
 
-        # Inicializa todos os y como 1 (não alocado) e C como 0 por padrão
+        # Inicializa todos os y como 1 (não alocado) por padrão
         for job in jobs_data:
             model.y[job.id].value = 1.0
-            model.C[job.id].value = 0.0
 
         # Zerar todas as variáveis x
         for idx in model.indexes:
             model.x[idx].value = 0.0
 
         warm_count = 0
-        proc_by_id = {job.id: job.processing_slots for job in jobs_data}
 
         for hj in heuristic_jobs:
             job_id = hj.get("job_id")
@@ -313,8 +308,6 @@ class TimeIndex:
                 if (job_id, start, m) in model.indexes:
                     model.x[job_id, start, m].value = 1.0
                     model.y[job_id].value = 0.0
-                    proc = proc_by_id.get(job_id, 0)
-                    model.C[job_id].value = start + proc
                     warm_count += 1
 
         # print(
@@ -383,18 +376,9 @@ class TimeIndex:
         model.x = pyo.Var(model.indexes, domain=pyo.Binary, name="x")
         model.y = pyo.Var(model.jobs_id, domain=pyo.Binary, name="y")
 
-        # Completion time de cada job
-        model.C = pyo.Var(model.jobs_id, domain=pyo.NonNegativeReals, name="completion")
-
         t0 = perf_counter()
         model.single_start = pyo.Constraint(jobs_data, rule=self._single_start_rule)
         # print(f"[single_start] {perf_counter() - t0:.3f}s")
-
-        t0 = perf_counter()
-        model.completion_time = pyo.Constraint(
-            jobs_data, rule=self._completion_time_rule
-        )
-        # print(f"[completion_time] {perf_counter() - t0:.3f}s")
 
         t0 = perf_counter()
         model.machine_capacity = pyo.Constraint(
