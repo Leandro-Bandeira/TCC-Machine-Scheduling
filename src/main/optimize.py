@@ -440,8 +440,9 @@ class TimeIndex:
 
         self._define_lexicographic_terms(model, time_slots, jobs_data)
 
-        if use_warm_start and heuristic_jobs:
-            self._apply_warm_start(heuristic_jobs)
+        self._heuristic_jobs = heuristic_jobs if (use_warm_start and heuristic_jobs) else None
+        if self._heuristic_jobs:
+            self._apply_warm_start(self._heuristic_jobs)
             self.warm_start_value = warm_start_value
 
         model.write("model.lp", io_options={"symbolic_solver_labels": True})
@@ -451,12 +452,63 @@ class TimeIndex:
         print(self.termination_condition)
         print(f"{self.objective_type}: {self.objective_value} (gap={self.mip_gap})")
 
+    def _heuristic_metrics(self) -> tuple[int, float, float] | None:
+        """(jobs não alocados, sum T, sum C) da heurística, espelhando _apply_warm_start."""
+        if not getattr(self, "_heuristic_jobs", None):
+            return None
+        proc = {j.id: j.processing_slots for j in self.jobs_data}
+        due = {j.id: j.due_date_slot for j in self.jobs_data}
+        placed: set[int] = set()
+        tard = 0.0
+        comp = 0.0
+        for hj in self._heuristic_jobs:
+            jid, start, m = hj.get("job_id"), hj.get("start"), hj.get("sub_machine")
+            if start is None or start == -1 or m is None or m == -1:
+                continue
+            if (jid, start, m) in self.model.indexes and jid not in placed:
+                placed.add(jid)
+                c = start + proc[jid]
+                comp += c
+                tard += max(0, c - due[jid])
+        return len(self.jobs_data) - len(placed), tard, comp
+
+    def _maybe_restart_from_heuristic(
+        self, model, phase_idx: int, y_bound: float, t_bound: float | None
+    ) -> None:
+        """
+        Antes das fases 2 (phase_idx=1) e 3 (phase_idx=2), reaplica a solução da heurística
+        se ela for factível para as restrições já fixadas E melhor no objetivo da fase
+        do que a solução corrente (carregada da fase anterior).
+        """
+        hm = self._heuristic_metrics()
+        if hm is None:
+            return
+        unalloc, tard, comp = hm
+        tol = 1e-6
+        if unalloc > y_bound + tol:
+            return
+        if phase_idx == 1:
+            cur = pyo.value(model.sum_tardiness)
+            cand = tard
+        else:
+            if t_bound is None or tard > t_bound + tol:
+                return
+            cur = pyo.value(model.sum_completion_time)
+            cand = comp
+        if cand < cur - tol:
+            print(
+                f"[Warm Start] heurística melhor que a solução anterior "
+                f"({cand} < {cur}); reaplicando na fase {phase_idx + 1}/3."
+            )
+            self._apply_warm_start(self._heuristic_jobs)
+
     # Condições de término consideradas "ótimas" (HiGHS contrib / Gurobi legacy)
     _OPTIMAL_CONDITIONS = {
         "TerminationCondition.convergenceCriteriaSatisfied",
         "optimal",
     }
     TIME_LIMIT_TOTAL = 3600.0
+    GUROBI_MIP_FOCUS = 2
 
     def _solve_lexicographic(self, model, warmstart: bool = False):
         """
@@ -475,6 +527,7 @@ class TimeIndex:
         phase_conditions: list[str] = []
         have_solution = False
         final_gap = None
+        y_star = 0
         remaining = self.TIME_LIMIT_TOTAL
 
         for idx, (label, expr, _) in enumerate(phases):
@@ -511,13 +564,17 @@ class TimeIndex:
 
             # Fixa o resultado da fase para as seguintes (bound incumbente é válido)
             if idx == 0:
+                y_star = round(phase_obj)
                 self._fix_phase_constraint(
-                    model, "fix_alloc", model.sum_unallocated, round(phase_obj) + 1e-6
+                    model, "fix_alloc", model.sum_unallocated, y_star + 1e-6
                 )
+                self._maybe_restart_from_heuristic(model, 1, y_star, None)
             elif idx == 1:
+                t_star = phase_obj
                 self._fix_phase_constraint(
-                    model, "fix_tardiness", model.sum_tardiness, phase_obj + 1e-6
+                    model, "fix_tardiness", model.sum_tardiness, t_star + 1e-6
                 )
+                self._maybe_restart_from_heuristic(model, 2, y_star, t_star)
 
         # Consolida resultado final
         non_optimal = [c for c in phase_conditions if c not in self._OPTIMAL_CONDITIONS]
@@ -565,6 +622,8 @@ class TimeIndex:
         solver = pyo.SolverFactory("gurobi")
         solver.options["TimeLimit"] = time_limit
         solver.options["MemLimit"] = 40.0
+        # 2 = foco em provar otimalidade (sobe o bound); 1 = soluções viáveis; 3 = melhorar bound
+        solver.options["MIPFocus"] = self.GUROBI_MIP_FOCUS
         try:
             result = solver.solve(
                 model, tee=True, warmstart=warmstart, load_solutions=False
