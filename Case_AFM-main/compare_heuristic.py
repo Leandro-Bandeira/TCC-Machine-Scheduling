@@ -1,25 +1,26 @@
 """
 Comparador de Desempenho: Solução Base dos Operadores (Case AFM) vs Heurística ILS/VNS.
 
-Este módulo lê as instâncias ativas configuradas em `run_config.json` e compara
-apenas a Solução Base dos Operadores (`Case_AFM-main/main.py` -> `output_baseline.json`)
+Este módulo lê as instâncias ativas configuradas em `run_config.json` e `run_config2.json`
+e compara a Solução Base dos Operadores (`Case_AFM-main/main.py` -> `output_baseline.json`)
 com a Heurística C++ (`src/heuristics/` -> `output_heuristic.json`), sem depender do MIP.
 
-Para cada par `(dt, status)` e máquina configurada em `run_config.json`:
+Para cada par `(dt, status)` e máquina configurada em `run_config.json` / `run_config2.json`:
 1. Compila o binário da heurística C++ (`make -C src/heuristics`), se necessário.
-2. Gera sempre um novo resultado da Solução Base dos Operadores (`output_baseline.json`).
-3. Preserva e lê o resultado existente da Heurística C++ (`output_heuristic.json`), executando o binário apenas caso a máquina ainda não exista em `output_heuristic.json`.
+2. Gera um novo resultado da Solução Base dos Operadores (`output_baseline.json`), ou reaproveita se `--skip-existing`.
+3. Preserva e lê o resultado existente da Heurística C++ (`output_heuristic.json`, gerado pelo `heuristicxmip`),
+   executando `run_heuristic_best_of` (10 execuções) apenas caso a máquina ainda não exista em `output_heuristic.json`.
 4. Compara:
-   - Função Objetivo (`baseline_fo` vs `heuristic_fo`, diferença absoluta `fo_diff` e percentual `fo_diff_pct`).
-   - Jobs não alocados (`baseline_unallocated` vs `heuristic_unallocated`).
+   - Função Objetivo (`real_solution_fo` vs `mean_heuristic_fo` / `best_heuristic_fo`, diferença absoluta `fo_diff` e percentual `fo_diff_pct`).
    - Dimensões da instância (`count_jobs`, `count_machines`, `H`).
-   - Tempo de execução (`baseline_time_seconds` vs `heuristic_time_seconds`).
+   - Tempo de execução (`real_solution_time_seconds` vs `mean_heuristic_time_seconds`).
 
 Gera o relatório consolidado em `Case_AFM-main/baseline_vs_heuristic.csv`.
 
 Uso:
     python3 Case_AFM-main/compare_heuristic.py
     python3 Case_AFM-main/compare_heuristic.py --skip-existing
+    python3 Case_AFM-main/compare_heuristic.py --only-existing-heuristic
 """
 
 from __future__ import annotations
@@ -37,15 +38,19 @@ BASE_DIR = CASE_DIR.parent
 RAW_DIR = BASE_DIR / "data" / "raw"
 TRUSTED_DIR = BASE_DIR / "data" / "trusted"
 RUN_CONFIG_JSON = BASE_DIR / "run_config.json"
+RUN_CONFIG2_JSON = BASE_DIR / "run_config2.json"
 HEURISTICS_DIR = BASE_DIR / "src" / "heuristics"
 HEURISTIC_BIN = HEURISTICS_DIR / "heuristic"
 MODEL_CONFIG_DIR = CASE_DIR / "model_config"
 OUT_CSV = CASE_DIR / "baseline_vs_heuristic.csv"
 
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
 if str(CASE_DIR) not in sys.path:
     sys.path.insert(0, str(CASE_DIR))
 
 import main as baseline_main  # noqa: E402
+from src.analysis.run_heuristic_multi import N_RUNS, run_heuristic_best_of  # noqa: E402
 
 FIELDNAMES = [
     "dt",
@@ -55,14 +60,14 @@ FIELDNAMES = [
     "count_jobs",
     "count_machines",
     "H",
-    "baseline_fo",
-    "heuristic_fo",
+    "real_solution_fo",
+    "warm_start_value",
+    "mean_heuristic_fo",
+    "best_heuristic_fo",
     "fo_diff",
     "fo_diff_pct",
-    "baseline_unallocated",
-    "heuristic_unallocated",
-    "baseline_time_seconds",
-    "heuristic_time_seconds",
+    "real_solution_time_seconds",
+    "mean_heuristic_time_seconds",
     "time_diff_seconds",
 ]
 
@@ -79,13 +84,8 @@ def build_heuristic() -> None:
 
 
 def run_heuristic(input_file: Path, machine_id: int) -> None:
-    """Executa o binário `./heuristic <input.json> <machine_id>`."""
-    subprocess.run(
-        [str(HEURISTIC_BIN), str(input_file), str(machine_id)],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
+    """Executa a heurística C++ `N_RUNS` vezes e salva a melhor e as médias em `output_heuristic.json`."""
+    run_heuristic_best_of(input_file, machine_id, N_RUNS)
 
 
 def read_scheduling_json(
@@ -93,7 +93,7 @@ def read_scheduling_json(
 ) -> tuple[float | None, float | None, int | None]:
     """
     Lê `(objective_function, solve_time_seconds, count_jobs_not_allocated)` de um arquivo
-    no formato `{"machines_scheduling": [...]}` (`output_heuristic.json` ou `output_baseline.json`).
+    no formato `{"machines_scheduling": [...]}` (`output_baseline.json`).
     """
     if not json_file.exists():
         return None, None, None
@@ -109,6 +109,37 @@ def read_scheduling_json(
                 )
     except Exception as e:
         print(f"  [erro ao ler {json_file}]: {e}")
+    return None, None, None
+
+
+def read_heuristic_json(
+    heuristic_file: Path, machine_id: int
+) -> tuple[float | None, float | None, float | None]:
+    """
+    Lê `(best_fo, mean_fo, mean_time_seconds)` de `output_heuristic.json`.
+
+    Preserva resultados já gerados (inclusive se não tiverem médias, usando `best_fo`
+    e `solve_time_seconds` como fallback para não refazer execuções existentes).
+    """
+    if not heuristic_file.exists():
+        return None, None, None
+    try:
+        with open(heuristic_file, encoding="utf-8") as f:
+            data = json.load(f)
+        for m in data.get("machines_scheduling", []):
+            if m.get("machine_id") == machine_id:
+                best_fo = m.get("objective_function")
+                if best_fo is None:
+                    return None, None, None
+                mean_fo = m.get("heuristic_mean_fo")
+                if mean_fo is None:
+                    mean_fo = best_fo
+                mean_time = m.get("heuristic_mean_time_seconds")
+                if mean_time is None:
+                    mean_time = m.get("solve_time_seconds")
+                return best_fo, mean_fo, mean_time
+    except Exception as e:
+        print(f"  [erro ao ler {heuristic_file}]: {e}")
     return None, None, None
 
 
@@ -175,125 +206,137 @@ def run_and_save_baseline_for_lote(
         )
 
 
+def merge_run_configs(*config_paths: Path) -> dict[tuple[str, str], set[str]]:
+    """
+    Lê e mescla múltiplos arquivos `run_config*.json` em um mapa
+    `(dt, status) -> conjunto de máquinas`, evitando duplicidades.
+    """
+    instances: dict[tuple[str, str], set[str]] = {}
+    for path in config_paths:
+        if not path.exists():
+            continue
+        with open(path, encoding="utf-8") as f:
+            cfg_dict = json.load(f)
+        for dt, cfg in cfg_dict.items():
+            machines = cfg.get("machines", [])
+            for status in cfg.get("only_status", []):
+                instances.setdefault((dt, status), set()).update(machines)
+    return instances
+
+
 def collect_comparisons(
-    run_config: dict,
+    instances: dict[tuple[str, str], set[str]],
     skip_existing: bool = False,
     only_existing_heuristic: bool = False,
 ) -> list[dict]:
     """
-    Itera sobre `run_config.json` e compara a Solução Base (`output_baseline.json`)
-    com a Heurística (`output_heuristic.json`).
+    Itera sobre `(dt, status)` mesclados de `run_config.json` e `run_config2.json`
+    e compara a Solução Base (`output_baseline.json`) com a Heurística (`output_heuristic.json`).
     """
     rows = []
     aux_tables = baseline_main.load_aux_tables(MODEL_CONFIG_DIR)
 
-    for dt, cfg in run_config.items():
+    for (dt, status), machines_wanted in instances.items():
         date_slug = iso_to_ddmmyyyy(dt)
-        machines_wanted = set(cfg.get("machines", []))
+        instance_dir = TRUSTED_DIR / date_slug / status
+        raw_lote_dir = RAW_DIR / date_slug / status
+        input_file = instance_dir / "input.json"
+        output_heuristic_file = instance_dir / "output_heuristic.json"
+        output_baseline_file = instance_dir / "output_baseline.json"
 
-        for status in cfg.get("only_status", []):
-            instance_dir = TRUSTED_DIR / date_slug / status
-            raw_lote_dir = RAW_DIR / date_slug / status
-            input_file = instance_dir / "input.json"
-            output_heuristic_file = instance_dir / "output_heuristic.json"
-            output_baseline_file = instance_dir / "output_baseline.json"
+        if not input_file.exists() or not raw_lote_dir.exists():
+            print(f"[skip] {dt} / status={status}: input.json ou lote raw ausente")
+            continue
 
-            if not input_file.exists() or not raw_lote_dir.exists():
-                print(f"[skip] {dt} / status={status}: input.json ou lote raw ausente")
-                continue
+        if only_existing_heuristic and not output_heuristic_file.exists():
+            continue
 
-            if only_existing_heuristic and not output_heuristic_file.exists():
-                continue
-
-            # Sempre gera um novo baseline para o lote
+        if not (skip_existing and output_baseline_file.exists()):
             run_and_save_baseline_for_lote(
                 raw_lote_dir, output_baseline_file, aux_tables
             )
 
-            with open(input_file, encoding="utf-8") as f:
-                input_data = json.load(f)
+        with open(input_file, encoding="utf-8") as f:
+            input_data = json.load(f)
 
-            jobs_per_machine: dict[int, int] = {}
-            for job in input_data.get("jobs", []):
-                if job.get("Status_Processed", "") != "":
-                    continue
-                m_id = job["assigned_machine_id"]
-                jobs_per_machine[m_id] = jobs_per_machine.get(m_id, 0) + 1
+        jobs_per_machine: dict[int, int] = {}
+        for job in input_data.get("jobs", []):
+            if job.get("Status_Processed", "") != "":
+                continue
+            m_id = job["assigned_machine_id"]
+            jobs_per_machine[m_id] = jobs_per_machine.get(m_id, 0) + 1
 
-            for mach in input_data.get("machines", []):
-                machine_id = mach["machine_id"]
-                machine_name = mach["machine_name"]
+        for mach in input_data.get("machines", []):
+            machine_id = mach["machine_id"]
+            machine_name = mach["machine_name"]
 
-                if machine_name not in machines_wanted:
-                    continue
+            if machine_name not in machines_wanted:
+                continue
 
-                count_jobs = jobs_per_machine.get(machine_id, 0)
-                count_machines = mach["job_capacity"]
-                start_slots = mach.get("start_slots", [])
-                h_horizon = start_slots[-1] if start_slots else 0
+            count_jobs = jobs_per_machine.get(machine_id, 0)
+            count_machines = mach["job_capacity"]
+            start_slots = mach.get("start_slots", [])
+            h_horizon = start_slots[-1] if start_slots else 0
 
-                baseline_fo, baseline_time, baseline_unallocated = read_scheduling_json(
-                    output_baseline_file, machine_id
-                )
+            real_solution_fo, real_solution_time, _ = read_scheduling_json(
+                output_baseline_file, machine_id
+            )
 
-                # Preserva sempre o resultado já existente da heurística
-                heuristic_fo, heuristic_time, heuristic_unallocated = (
-                    read_scheduling_json(output_heuristic_file, machine_id)
-                )
+            # Preserva sempre o resultado já existente da heurística (heuristicxmip)
+            best_fo, mean_fo, mean_time = read_heuristic_json(
+                output_heuristic_file, machine_id
+            )
 
-                if heuristic_fo is None and not only_existing_heuristic:
-                    print(
-                        f"[run] Executando heurística: {dt} / status={status} / {machine_name} (id={machine_id})"
-                    )
-                    try:
-                        run_heuristic(input_file, machine_id)
-                        (
-                            heuristic_fo,
-                            heuristic_time,
-                            heuristic_unallocated,
-                        ) = read_scheduling_json(output_heuristic_file, machine_id)
-                    except (RuntimeError, subprocess.CalledProcessError) as e:
-                        print(f"  [ERRO] {e}")
-                        continue
-
-                if baseline_fo is None or heuristic_fo is None:
-                    continue
-
-                fo_diff = heuristic_fo - baseline_fo
-                fo_diff_pct = (
-                    (fo_diff / baseline_fo * 100)
-                    if (baseline_fo and baseline_fo != 0)
-                    else float("nan")
-                )
-                time_diff = (heuristic_time or 0.0) - (baseline_time or 0.0)
-
-                rows.append(
-                    {
-                        "dt": dt,
-                        "status": status,
-                        "machine_id": machine_id,
-                        "machine_name": machine_name,
-                        "count_jobs": count_jobs,
-                        "count_machines": count_machines,
-                        "H": h_horizon,
-                        "baseline_fo": baseline_fo,
-                        "heuristic_fo": heuristic_fo,
-                        "fo_diff": fo_diff,
-                        "fo_diff_pct": fo_diff_pct,
-                        "baseline_unallocated": baseline_unallocated,
-                        "heuristic_unallocated": heuristic_unallocated,
-                        "baseline_time_seconds": baseline_time,
-                        "heuristic_time_seconds": heuristic_time,
-                        "time_diff_seconds": time_diff,
-                    }
-                )
+            if best_fo is None and not only_existing_heuristic:
                 print(
-                    f"[{dt}/{status}] {machine_name} (id={machine_id})"
-                    f" | jobs={count_jobs} mach={count_machines} H={h_horizon}"
-                    f" | fo: base={baseline_fo:.4f} heur={heuristic_fo:.4f} diff={fo_diff:+.4f} ({fo_diff_pct:+.2f}%)"
-                    f" | unallocated: base={baseline_unallocated} heur={heuristic_unallocated}"
-                    f" | tempo: base={baseline_time:.4f}s heur={heuristic_time:.4f}s"
+                    f"[run] Executando heurística: {dt} / status={status} / {machine_name} (id={machine_id})"
                 )
+                try:
+                    run_heuristic(input_file, machine_id)
+                    best_fo, mean_fo, mean_time = read_heuristic_json(
+                        output_heuristic_file, machine_id
+                    )
+                except (RuntimeError, subprocess.CalledProcessError) as e:
+                    print(f"  [ERRO] {e}")
+                    continue
+
+            if real_solution_fo is None or best_fo is None or mean_fo is None:
+                continue
+
+            fo_diff = mean_fo - real_solution_fo
+            fo_diff_pct = (
+                (fo_diff / real_solution_fo * 100)
+                if (real_solution_fo and real_solution_fo != 0)
+                else float("nan")
+            )
+            time_diff = (mean_time or 0.0) - (real_solution_time or 0.0)
+
+            rows.append(
+                {
+                    "dt": dt,
+                    "status": status,
+                    "machine_id": machine_id,
+                    "machine_name": machine_name,
+                    "count_jobs": count_jobs,
+                    "count_machines": count_machines,
+                    "H": h_horizon,
+                    "real_solution_fo": real_solution_fo,
+                    "warm_start_value": None,
+                    "mean_heuristic_fo": mean_fo,
+                    "best_heuristic_fo": best_fo,
+                    "fo_diff": fo_diff,
+                    "fo_diff_pct": fo_diff_pct,
+                    "real_solution_time_seconds": real_solution_time,
+                    "mean_heuristic_time_seconds": mean_time,
+                    "time_diff_seconds": time_diff,
+                }
+            )
+            print(
+                f"[{dt}/{status}] {machine_name} (id={machine_id})"
+                f" | jobs={count_jobs} mach={count_machines} H={h_horizon}"
+                f" | fo: real={real_solution_fo:.4f} mean={mean_fo:.4f} best={best_fo:.4f} diff={fo_diff:+.4f} ({fo_diff_pct:+.2f}%)"
+                f" | tempo: real={real_solution_time:.4f}s mean={mean_time:.4f}s"
+            )
 
     return rows
 
@@ -310,7 +353,7 @@ def write_csv(rows: list[dict], path: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Compara a Solução Base (Case AFM) com a Heurística a partir do run_config.json."
+        description="Compara a Solução Base (Case AFM) com a Heurística a partir de run_config.json e run_config2.json."
     )
     parser.add_argument(
         "--skip-existing",
@@ -326,17 +369,16 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    if not RUN_CONFIG_JSON.exists():
-        print(f"run_config.json não encontrado em {RUN_CONFIG_JSON}")
+    if not RUN_CONFIG_JSON.exists() and not RUN_CONFIG2_JSON.exists():
+        print(f"Nenhum arquivo de configuração encontrado ({RUN_CONFIG_JSON}, {RUN_CONFIG2_JSON})")
         sys.exit(1)
 
     build_heuristic()
 
-    with open(RUN_CONFIG_JSON, encoding="utf-8") as f:
-        run_config = json.load(f)
+    instances = merge_run_configs(RUN_CONFIG_JSON, RUN_CONFIG2_JSON)
 
     rows = collect_comparisons(
-        run_config,
+        instances,
         skip_existing=args.skip_existing,
         only_existing_heuristic=args.only_existing_heuristic,
     )
