@@ -188,28 +188,67 @@ class TimeIndex:
             expr=model.objective_expr + model.penalty, sense=pyo.minimize
         )
 
-    def minimize_sum_tardiness(
+    def _define_lexicographic_terms(
         self, model, time_slots: list[int], jobs_data: list[Job]
     ):
-        self.objective_type = "sum_tardiness"
-        # O W é o valor da pior situação possivel, nesse caso, todos os jobs atrasassem até o ultimo slot
-        W = len(jobs_data) * time_slots[-1] + 1
-        epsilon = 1 / W
-        model.penalty = sum(W * model.y[job.id] for job in jobs_data)
-        model.objective = pyo.Objective(
-            expr=sum(
-                (
-                    max(0, t + job.processing_slots - job.due_date_slot)
-                    + epsilon * (t + job.processing_slots)
-                )
-                * model.x[job.id, t, m]
-                for job in jobs_data
-                for t in self.time_slots_job[job.id]
-                for m in range(self.count_machines)
-            )
-            + model.penalty,
-            sense=pyo.minimize,
+        """
+        Define as 3 expressões da FO lexicográfica, todas lineares em x/y
+        (sem variáveis C/T auxiliares):
+          - sum_unallocated     = sum y_j
+          - sum_tardiness       = sum max(0, t+p_j-d_j) * x_jtm
+          - sum_completion_time = sum (t+p_j) * x_jtm
+        """
+        self.objective_type = "sum_tardiness_lexicographic"
+        model.sum_unallocated = sum(model.y[job.id] for job in jobs_data)
+        model.sum_tardiness = sum(
+            max(0, t + job.processing_slots - job.due_date_slot) * model.x[job.id, t, m]
+            for job in jobs_data
+            for t in self.time_slots_job[job.id]
+            for m in range(self.count_machines)
         )
+        model.sum_completion_time = sum(
+            (t + job.processing_slots) * model.x[job.id, t, m]
+            for job in jobs_data
+            for t in self.time_slots_job[job.id]
+            for m in range(self.count_machines)
+        )
+        # Peso usado APENAS para reportar a FO composta (compatível com a heurística):
+        # FO = sum T + W * sum y + (1/W) * sum C
+        self.report_W = len(jobs_data) * time_slots[-1] + 1
+
+    def _set_objective(self, model, expr):
+        if hasattr(model, "objective"):
+            model.del_component(model.objective)
+        model.objective = pyo.Objective(expr=expr, sense=pyo.minimize)
+
+    def _fix_phase_constraint(self, model, name: str, expr, bound: float):
+        """Adiciona (ou substitui) a restrição expr <= bound entre fases."""
+        if hasattr(model, name):
+            model.del_component(getattr(model, name))
+        setattr(model, name, pyo.Constraint(expr=expr <= bound))
+
+    def _composite_objective_from_solution(self) -> float:
+        """FO composta sum T + W*sum y + (1/W)*sum C, calculada a partir da solução x/y."""
+        total_t = 0.0
+        total_c = 0.0
+        unallocated = 0
+        for job in self.jobs_data:
+            start = None
+            for t in self.time_slots_job[job.id]:
+                if any(
+                    pyo.value(self.model.x[job.id, t, m]) > 0.5
+                    for m in range(self.count_machines)
+                ):
+                    start = t
+                    break
+            if start is None:
+                unallocated += 1
+                continue
+            c = start + job.processing_slots
+            total_c += c
+            total_t += max(0, c - job.due_date_slot)
+        W = self.report_W
+        return total_t + W * unallocated + total_c / W
 
     def generate_output(self) -> dict:
         model = self.model
@@ -399,9 +438,7 @@ class TimeIndex:
             )
             # print(f"[resource_constraint] {perf_counter() - t0:.3f}s")
 
-        t0 = perf_counter()
-        self.minimize_sum_tardiness(model, time_slots, jobs_data)
-        # print(f"[sum_tardiness] {perf_counter() - t0:.3f}s")
+        self._define_lexicographic_terms(model, time_slots, jobs_data)
 
         if use_warm_start and heuristic_jobs:
             self._apply_warm_start(heuristic_jobs)
@@ -409,52 +446,129 @@ class TimeIndex:
 
         model.write("model.lp", io_options={"symbolic_solver_labels": True})
 
-        if self._use_gurobi:
-            self._solve_with_gurobi(model, warmstart=use_warm_start)
-        else:
-            self._solve_with_highs(model, warmstart=use_warm_start)
+        self._solve_lexicographic(model, warmstart=use_warm_start)
 
         print(self.termination_condition)
         print(f"{self.objective_type}: {self.objective_value} (gap={self.mip_gap})")
 
-    def _solve_with_highs(self, model, warmstart: bool = False):
+    # Condições de término consideradas "ótimas" (HiGHS contrib / Gurobi legacy)
+    _OPTIMAL_CONDITIONS = {
+        "TerminationCondition.convergenceCriteriaSatisfied",
+        "optimal",
+    }
+    TIME_LIMIT_TOTAL = 3600.0
+
+    def _solve_lexicographic(self, model, warmstart: bool = False):
+        """
+        Resolve em 3 fases (ordem lexicográfica equivalente à FO composta anterior):
+          1. min  sum y            (alocar o maior número de jobs)
+          2. min  sum T            s.t. sum y <= y*
+          3. min  sum C            s.t. sum y <= y*, sum T <= T*
+        O orçamento de tempo (TIME_LIMIT_TOTAL) é compartilhado entre as fases.
+        Se uma fase posterior falhar sem solução, mantém a solução da fase anterior.
+        """
+        phases = [
+            ("1/3 alocacao", model.sum_unallocated, "phase_alloc"),
+            ("2/3 tardiness", model.sum_tardiness, "phase_tardiness"),
+            ("3/3 completion", model.sum_completion_time, "phase_completion"),
+        ]
+        phase_conditions: list[str] = []
+        have_solution = False
+        final_gap = None
+        remaining = self.TIME_LIMIT_TOTAL
+
+        for idx, (label, expr, _) in enumerate(phases):
+            if remaining <= 1.0:
+                print(f"[Fase {label}] sem tempo restante; interrompendo.")
+                phase_conditions.append("maxTimeLimit")
+                break
+
+            self._set_objective(model, expr)
+            print(f"\n[Fase {label}] time_limit={remaining:.1f}s")
+            t_phase = perf_counter()
+            # Fases 2 e 3 sempre partem da solução da fase anterior (valores no modelo)
+            use_ws = warmstart if idx == 0 else have_solution
+            if self._use_gurobi:
+                ok, phase_obj = self._solve_with_gurobi(
+                    model, warmstart=use_ws, time_limit=remaining
+                )
+            else:
+                ok, phase_obj = self._solve_with_highs(
+                    model, warmstart=use_ws, time_limit=remaining
+                )
+            elapsed = perf_counter() - t_phase
+            self.solve_time += elapsed
+            remaining -= elapsed
+            phase_conditions.append(self.termination_condition)
+
+            if not ok:
+                print(f"[Fase {label}] sem solução viável.")
+                break
+
+            have_solution = True
+            final_gap = self.mip_gap
+            print(f"[Fase {label}] obj={phase_obj} (gap={self.mip_gap})")
+
+            # Fixa o resultado da fase para as seguintes (bound incumbente é válido)
+            if idx == 0:
+                self._fix_phase_constraint(
+                    model, "fix_alloc", model.sum_unallocated, round(phase_obj) + 1e-6
+                )
+            elif idx == 1:
+                self._fix_phase_constraint(
+                    model, "fix_tardiness", model.sum_tardiness, phase_obj + 1e-6
+                )
+
+        # Consolida resultado final
+        non_optimal = [c for c in phase_conditions if c not in self._OPTIMAL_CONDITIONS]
+        if phase_conditions:
+            self.termination_condition = (
+                non_optimal[0] if non_optimal else phase_conditions[-1]
+            )
+        if have_solution:
+            self.objective_value = self._composite_objective_from_solution()
+            self.mip_gap = final_gap
+        else:
+            self.objective_value = None
+            self.mip_gap = None
+
+    def _solve_with_highs(
+        self, model, warmstart: bool = False, time_limit: float = 3600.0
+    ):
         solver = HiGHS()
         solver.config.load_solutions = False
         solver.config.raise_exception_on_nonoptimal_result = False
-        solver.config.time_limit = 3600
+        solver.config.time_limit = time_limit
         #solver.config.solver_options = {"simplex_scale_strategy": 4}
-        _t0 = perf_counter()
         try:
             result = solver.solve(model, tee=True, warmstart=warmstart)
         except Exception:
             result = solver.solve(model, tee=True)
-        self.solve_time = perf_counter() - _t0
         self.termination_condition = str(result.termination_condition)
 
         has_solution = result.incumbent_objective is not None
         if has_solution:
             result.solution_loader.load_vars()
-            self.objective_value = self._read_objective(model)
             incumbent = result.incumbent_objective
             bound = result.objective_bound
             if incumbent != 0 and bound is not None:
                 self.mip_gap = round(abs(incumbent - bound) / abs(incumbent), 6)
             else:
-                self.mip_gap = None
-        else:
-            self.objective_value = None
-            self.mip_gap = None
+                self.mip_gap = 0.0 if incumbent == 0 else None
+            return True, float(incumbent)
+        self.mip_gap = None
+        return False, None
 
-    def _solve_with_gurobi(self, model, warmstart: bool = False):
+    def _solve_with_gurobi(
+        self, model, warmstart: bool = False, time_limit: float = 3600.0
+    ):
         solver = pyo.SolverFactory("gurobi")
-        solver.options["TimeLimit"] = 3600
+        solver.options["TimeLimit"] = time_limit
         solver.options["MemLimit"] = 40.0
-        _t0 = perf_counter()
         try:
             result = solver.solve(
                 model, tee=True, warmstart=warmstart, load_solutions=False
             )
-            self.solve_time = perf_counter() - _t0
             solver_msg = str(getattr(result.solver, "message", ""))
             if "Unhandled Gurobi solve status (17)" in solver_msg:
                 self.termination_condition = "mem_limit"
@@ -472,28 +586,18 @@ class TimeIndex:
             if has_solution:
                 result.solver.status = pyo.SolverStatus.ok
                 model.solutions.load_from(result)
-                self.objective_value = self._read_objective(model)
                 if upper != 0 and lower is not None and abs(lower) < 1e99:
                     self.mip_gap = round(abs(upper - lower) / abs(upper), 6)
                 else:
-                    self.mip_gap = None
-            else:
-                self.objective_value = None
-                self.mip_gap = None
+                    self.mip_gap = 0.0 if upper == 0 else None
+                return True, float(upper)
+            self.mip_gap = None
+            return False, None
         except Exception as exc:
-            self.solve_time = perf_counter() - _t0
             print(f"[AVISO] Gurobi interrompido com exceção: {exc}")
             self.termination_condition = "mem_limit"
-            self.objective_value = None
             self.mip_gap = None
-
-    def _read_objective(self, model):
-        if self.objective_type == "c_max":
-            return pyo.value(model.C_max)
-        elif self.objective_type == "sum_tardiness":
-            return pyo.value(model.objective)
-        else:
-            return pyo.value(model.objective_expr)
+            return False, None
 
 
 def main(
