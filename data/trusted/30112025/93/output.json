@@ -1,0 +1,44 @@
+{
+  "machines_scheduling": [
+    {
+      "machine_id": 0,
+      "objective_function": null,
+      "warm_start_value": 0.19905738582911858,
+      "mip_gap": null,
+      "count_jobs_not_allocated": 80,
+      "solve_time_seconds": 0.016,
+      "termination_condition": "mem_limit",
+      "jobs": []
+    },
+    {
+      "machine_id": 1,
+      "objective_function": null,
+      "warm_start_value": 0.36225880981620634,
+      "mip_gap": null,
+      "count_jobs_not_allocated": 34,
+      "solve_time_seconds": 0.005,
+      "termination_condition": "mem_limit",
+      "jobs": []
+    },
+    {
+      "machine_id": 3,
+      "objective_function": null,
+      "warm_start_value": 38152.32304990564,
+      "mip_gap": null,
+      "count_jobs_not_allocated": 27,
+      "solve_time_seconds": 0.008,
+      "termination_condition": "mem_limit",
+      "jobs": []
+    },
+    {
+      "machine_id": 5,
+      "objective_function": null,
+      "warm_start_value": 0.35589873512043363,
+      "mip_gap": null,
+      "count_jobs_not_allocated": 40,
+      "solve_time_seconds": 0.043,
+      "termination_condition": "mem_limit",
+      "jobs": []
+    }
+  ]
+}
