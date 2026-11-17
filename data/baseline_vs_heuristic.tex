@@ -1,0 +1,195 @@
+% Requer no preâmbulo: \usepackage{booktabs, graphicx}
+{\fontsize{6.5}{7.8}\selectfont
+\setlength{\tabcolsep}{2.5pt}
+\begin{center}
+\refstepcounter{table}\label{tab:baseline_vs_heuristic}%
+\rotatebox{90}{%
+\begin{tabular}{@{}llrrrrrrrrrr@{}}
+\multicolumn{12}{c}{\normalsize Tabela \thetable{} -- Comparativo entre o Baseline e a meta-heurística -- instâncias com $n \le 50$} \\[1.2ex]
+\toprule
+Data & Setor & $n$ & M & H & Baseline FO & \shortstack{Média\\Heurística FO} & \shortstack{Best\\Heurística FO} & GAP (\%) & \shortstack{Baseline Não\\Alocados} & \shortstack{Heurística\\Não Alocados} & \shortstack{Média Tempo\\Heurística} \\
+\midrule
+2026-07-08 & Pepset Carrossel & 10 & 10 & 766 & \textbf{0.199191} & \textbf{0.199191} & \textbf{0.199191} & \textbf{0.00} & \textbf{0.00} & \textbf{0.00} & 0.004 \\
+2026-05-29 & Pepset Carrossel & 10 & 10 & 190 & \textbf{0.351920} & \textbf{0.351920} & \textbf{0.351920} & \textbf{0.00} & \textbf{0.00} & \textbf{0.00} & 0.004 \\
+2026-05-01 & Pepset Chão & 11 & 2 & 261 & 11488.486421 & \textbf{5744.680362} & \textbf{5744.680362} & \textbf{-50.00} & 4.00 & \textbf{2.00} & 0.007 \\
+2026-07-06 & Pepset Carrossel & 11 & 10 & 1342 & 122.551717 & \textbf{0.529703} & \textbf{0.529703} & \textbf{-99.57} & \textbf{0.00} & \textbf{0.00} & 0.006 \\
+2026-01-23 & Cold Box Gasado Pequena & 11 & 1 & 261 & 5744.652855 & \textbf{2872.459262} & \textbf{2872.459262} & \textbf{-50.00} & 2.00 & \textbf{1.00} & 0.004 \\
+2026-03-06 & Cold Box Soprado Sopradora & 12 & 1 & 190 & 0.564665 & \textbf{0.433143} & \textbf{0.433143} & \textbf{-23.29} & \textbf{0.00} & \textbf{0.00} & 0.005 \\
+2026-05-22 & Pepset Chão & 12 & 2 & 261 & 6266.616661 & \textbf{6266.548356} & \textbf{6266.548356} & \textbf{-0.001090} & \textbf{2.00} & \textbf{2.00} & 0.012 \\
+2026-06-12 & Pepset Carrossel & 13 & 10 & 190 & \textbf{0.435856} & \textbf{0.435856} & \textbf{0.435856} & \textbf{0.00} & \textbf{0.00} & \textbf{0.00} & 0.013 \\
+2026-06-18 & Cold Box Soprado Sopradora & 13 & 1 & 478 & 709.799678 & \textbf{0.419147} & \textbf{0.419147} & \textbf{-99.94} & \textbf{0.00} & \textbf{0.00} & 0.008 \\
+2026-02-13 & Pepset Chão & 14 & 2 & 261 & 18275.467579 & \textbf{7310.589603} & \textbf{7310.589603} & \textbf{-60.00} & 5.00 & \textbf{2.00} & 0.026 \\
+2025-12-15 & Cold Box Soprado Sopradora & 17 & 1 & 1342 & 101.090028 & \textbf{0.061319} & \textbf{0.061319} & \textbf{-99.94} & \textbf{0.00} & \textbf{0.00} & 0.023 \\
+2025-10-03 & Cold Box Soprado Sopradora & 22 & 1 & 190 & 0.356852 & \textbf{0.325042} & \textbf{0.325042} & \textbf{-8.91} & \textbf{0.00} & \textbf{0.00} & 0.049 \\
+2026-07-04 & Pepset Chão & 10 & 2 & 1413 & 70789.351072 & \textbf{70655.317529} & \textbf{70655.317529} & \textbf{-0.19} & \textbf{5.00} & \textbf{5.00} & 0.004 \\
+2026-07-04 & Pepset Carrossel & 13 & 10 & 1342 & \textbf{69788.538029} & \textbf{69788.538029} & \textbf{69788.538029} & \textbf{0.00} & \textbf{4.00} & \textbf{4.00} & 0.007 \\
+2026-07-05 & Pepset Chão & 10 & 2 & 1413 & 16013.751893 & \textbf{14131.559408} & \textbf{14131.559408} & \textbf{-11.75} & \textbf{1.00} & \textbf{1.00} & 0.006 \\
+2026-07-05 & Pepset Carrossel & 13 & 10 & 1342 & \textbf{0.667049} & \textbf{0.667049} & \textbf{0.667049} & \textbf{0.00} & \textbf{0.00} & \textbf{0.00} & 0.009 \\
+2026-06-30 & Pepset Chão & 12 & 2 & 1125 & 797.540330 & \textbf{0.442338} & \textbf{0.442338} & \textbf{-99.94} & \textbf{0.00} & \textbf{0.00} & 0.014 \\
+2026-06-30 & Pepset Carrossel & 15 & 10 & 1054 & \textbf{0.330656} & \textbf{0.330656} & \textbf{0.330656} & \textbf{0.00} & \textbf{0.00} & \textbf{0.00} & 0.021 \\
+2026-05-28 & Pepset Carrossel & 28 & 10 & 478 & 248.606425 & \textbf{0.519462} & \textbf{0.519462} & \textbf{-99.79} & \textbf{0.00} & \textbf{0.00} & 0.160 \\
+2025-10-02 & Pepset Carrossel & 22 & 10 & 478 & 0.684701 & \textbf{0.656746} & \textbf{0.656746} & \textbf{-4.08} & \textbf{0.00} & \textbf{0.00} & 0.057 \\
+2025-10-02 & Cold Box Soprado Sopradora & 10 & 1 & 478 & 0.675800 & \textbf{0.602384} & \textbf{0.602384} & \textbf{-10.86} & \textbf{0.00} & \textbf{0.00} & 0.003 \\
+2026-03-13 & Pepset Carrossel & 20 & 10 & 190 & 0.394370 & \textbf{0.360431} & \textbf{0.360431} & \textbf{-8.61} & \textbf{0.00} & \textbf{0.00} & 0.064 \\
+2026-03-13 & Cold Box Soprado Sopradora & 12 & 1 & 190 & 0.357738 & \textbf{0.337133} & \textbf{0.337133} & \textbf{-5.76} & \textbf{0.00} & \textbf{0.00} & 0.005 \\
+2026-01-22 & Cold Box Gasado Pequena & 14 & 1 & 549 & 46327.447509 & \textbf{0.473267} & \textbf{0.473267} & \textbf{-100.00} & 6.00 & \textbf{0.00} & 0.013 \\
+2026-01-22 & Cold Box Soprado Sopradora & 18 & 1 & 478 & 134.822080 & \textbf{0.656014} & \textbf{0.656014} & \textbf{-99.51} & \textbf{0.00} & \textbf{0.00} & 0.027 \\
+2026-04-17 & Pepset Carrossel & 32 & 10 & 190 & 0.740997 & \textbf{0.665680} & \textbf{0.665680} & \textbf{-10.16} & \textbf{0.00} & \textbf{0.00} & 0.362 \\
+2026-07-11 & Pepset Chão & 11 & 2 & 1413 & 77899.379503 & \textbf{77720.340453} & \textbf{77720.340453} & \textbf{-0.23} & \textbf{5.00} & \textbf{5.00} & 0.005 \\
+2026-07-11 & Pepset Carrossel & 11 & 10 & 1342 & \textbf{132867.144415} & \textbf{132867.144415} & \textbf{132867.144415} & \textbf{0.00} & \textbf{9.00} & \textbf{9.00} & 0.003 \\
+2026-07-11 & Cold Box Soprado Sopradora & 13 & 1 & 1342 & 174470.207199 & \textbf{174470.207084} & \textbf{174470.207084} & \textbf{-0.000001} & \textbf{10.00} & \textbf{10.00} & 0.004 \\
+2026-07-13 & Pepset Chão & 11 & 2 & 1413 & 952.587944 & \textbf{0.469635} & \textbf{0.469635} & \textbf{-99.95} & \textbf{0.00} & \textbf{0.00} & 0.008 \\
+2026-07-13 & Pepset Carrossel & 12 & 10 & 1342 & \textbf{0.757405} & \textbf{0.757405} & \textbf{0.757405} & \textbf{0.00} & \textbf{0.00} & \textbf{0.00} & 0.006 \\
+2026-07-13 & Cold Box Soprado Sopradora & 13 & 1 & 1342 & 189.770046 & \textbf{0.716513} & \textbf{0.716513} & \textbf{-99.62} & \textbf{0.00} & \textbf{0.00} & 0.008 \\
+2026-02-05 & Cold Box Gasado Pequena & 10 & 1 & 549 & 57.517574 & \textbf{0.397378} & \textbf{0.397378} & \textbf{-99.31} & \textbf{0.00} & \textbf{0.00} & 0.003 \\
+2026-02-05 & Pepset Carrossel & 17 & 10 & 478 & 0.412329 & \textbf{0.408884} & \textbf{0.408884} & \textbf{-0.84} & \textbf{0.00} & \textbf{0.00} & 0.031 \\
+\bottomrule
+\end{tabular}%
+}
+\end{center}
+}
+\newpage
+\vspace*{\fill}
+{\fontsize{6.5}{7.8}\selectfont
+\setlength{\tabcolsep}{2.5pt}
+\begin{center}
+\rotatebox{90}{%
+\begin{tabular}{@{}llrrrrrrrrrr@{}}
+\toprule
+Data & Setor & $n$ & M & H & Baseline FO & \shortstack{Média\\Heurística FO} & \shortstack{Best\\Heurística FO} & GAP (\%) & \shortstack{Baseline Não\\Alocados} & \shortstack{Heurística\\Não Alocados} & \shortstack{Média Tempo\\Heurística} \\
+\midrule
+2026-02-05 & Pepset Chão & 10 & 2 & 549 & 258.750683 & \textbf{0.473502} & \textbf{0.473502} & \textbf{-99.82} & \textbf{0.00} & \textbf{0.00} & 0.008 \\
+2026-04-10 & Cold Box Gasado Pequena & 10 & 1 & 261 & 0.365760 & \textbf{0.296821} & \textbf{0.296821} & \textbf{-18.85} & \textbf{0.00} & \textbf{0.00} & 0.003 \\
+2026-04-10 & Pepset Carrossel & 17 & 10 & 190 & 0.466419 & \textbf{0.425565} & \textbf{0.425565} & \textbf{-8.76} & \textbf{0.00} & \textbf{0.00} & 0.024 \\
+2026-04-10 & Pepset Chão & 11 & 2 & 261 & 263.834958 & \textbf{220.757660} & \textbf{220.757660} & \textbf{-16.33} & \textbf{0.00} & \textbf{0.00} & 0.010 \\
+2026-03-05 & Cold Box Gasado Pequena & 15 & 1 & 549 & 797.584264 & \textbf{0.260442} & \textbf{0.260442} & \textbf{-99.97} & \textbf{0.00} & \textbf{0.00} & 0.016 \\
+2026-03-05 & Pepset Carrossel & 14 & 10 & 478 & 0.444942 & \textbf{0.396534} & \textbf{0.396534} & \textbf{-10.88} & \textbf{0.00} & \textbf{0.00} & 0.016 \\
+2026-03-05 & Cold Box Soprado Sopradora & 14 & 1 & 478 & 128.749290 & \textbf{0.498431} & \textbf{0.498431} & \textbf{-99.61} & \textbf{0.00} & \textbf{0.00} & 0.011 \\
+2026-04-24 & Pepset Carrossel & 20 & 10 & 190 & 0.591160 & \textbf{0.552749} & \textbf{0.552749} & \textbf{-6.50} & \textbf{0.00} & \textbf{0.00} & 0.052 \\
+2026-04-24 & Pepset Chão & 15 & 2 & 261 & 3924.668284 & \textbf{0.653473} & \textbf{0.653473} & \textbf{-99.98} & 1.00 & \textbf{0.00} & 0.030 \\
+2026-04-24 & Pepset Carrossel & 5 & 10 & 190 & \textbf{0.483701} & \textbf{0.483701} & \textbf{0.483701} & \textbf{0.00} & \textbf{0.00} & \textbf{0.00} & 0.001 \\
+2026-04-24 & Pepset Chão & 12 & 2 & 261 & 0.629109 & \textbf{0.530163} & \textbf{0.530163} & \textbf{-15.73} & \textbf{0.00} & \textbf{0.00} & 0.013 \\
+2026-02-18 & Pepset Chão & 17 & 2 & 837 & 46234.642867 & \textbf{1911.579480} & \textbf{1911.579480} & \textbf{-95.87} & 3.00 & \textbf{0.00} & 0.048 \\
+2026-02-18 & Pepset Carrossel & 23 & 10 & 766 & 3767.867643 & \textbf{2625.802826} & \textbf{2625.802826} & \textbf{-30.31} & \textbf{0.00} & \textbf{0.00} & 0.120 \\
+2026-02-18 & Cold Box Soprado Sopradora & 12 & 1 & 766 & 1508.853258 & \textbf{732.768846} & \textbf{732.768846} & \textbf{-51.44} & \textbf{0.00} & \textbf{0.00} & 0.006 \\
+2026-06-02 & Pepset Carrossel & 26 & 10 & 1054 & 272.362817 & \textbf{0.327422} & \textbf{0.327422} & \textbf{-99.88} & \textbf{0.00} & \textbf{0.00} & 0.121 \\
+2026-06-02 & Cold Box Soprado Sopradora & 26 & 1 & 1054 & 440.339245 & \textbf{0.280423} & \textbf{0.280423} & \textbf{-99.94} & \textbf{0.00} & \textbf{0.00} & 0.108 \\
+2026-06-11 & Pepset Chão & 14 & 2 & 549 & 31770.647717 & \textbf{0.545076} & \textbf{0.545076} & \textbf{-100.00} & 4.00 & \textbf{0.00} & 0.027 \\
+2026-06-11 & Pepset Carrossel & 39 & 10 & 478 & 406.631658 & \textbf{0.554900} & \textbf{0.554900} & \textbf{-99.86} & \textbf{0.00} & \textbf{0.00} & 0.797 \\
+2026-05-15 & Cold Box Soprado Sopradora & 14 & 1 & 190 & 0.361142 & \textbf{0.309658} & \textbf{0.309658} & \textbf{-14.26} & \textbf{0.00} & \textbf{0.00} & 0.009 \\
+2026-05-15 & Pepset Chão & 13 & 2 & 261 & 6788.652917 & \textbf{0.691514} & \textbf{0.691514} & \textbf{-99.99} & 2.00 & \textbf{0.00} & 0.022 \\
+2026-05-15 & Pepset Carrossel & 28 & 10 & 190 & 0.544259 & \textbf{0.504792} & \textbf{0.504792} & \textbf{-7.25} & \textbf{0.00} & \textbf{0.00} & 0.155 \\
+2026-06-29 & Pepset Chão & 30 & 2 & 1413 & 8170.584063 & \textbf{1171.877186} & \textbf{1171.377085} & \textbf{-85.66} & \textbf{0.00} & \textbf{0.00} & 0.719 \\
+2026-06-29 & Pepset Carrossel & 14 & 10 & 1342 & \textbf{0.506041} & \textbf{0.506041} & \textbf{0.506041} & \textbf{0.00} & \textbf{0.00} & \textbf{0.00} & 0.014 \\
+2026-06-29 & Cold Box Soprado Sopradora & 12 & 1 & 1342 & 1269.667122 & \textbf{0.525986} & \textbf{0.525986} & \textbf{-99.96} & \textbf{0.00} & \textbf{0.00} & 0.006 \\
+2026-01-30 & Cold Box Soprado Sopradora & 30 & 1 & 190 & 0.508683 & \textbf{0.413787} & \textbf{0.413787} & \textbf{-18.66} & \textbf{0.00} & \textbf{0.00} & 0.255 \\
+2026-01-30 & Cold Box Gasado Pequena & 11 & 1 & 261 & 0.533078 & \textbf{0.445334} & \textbf{0.445334} & \textbf{-16.46} & \textbf{0.00} & \textbf{0.00} & 0.004 \\
+2026-01-30 & Cold Box Soprado Sopradora & 16 & 1 & 190 & 0.584347 & \textbf{0.536994} & \textbf{0.536994} & \textbf{-8.10} & \textbf{0.00} & \textbf{0.00} & 0.015 \\
+2026-01-30 & Cold Box Gasado Pequena & 3 & 1 & 261 & 0.522959 & \textbf{0.489796} & \textbf{0.489796} & \textbf{-6.34} & \textbf{0.00} & \textbf{0.00} & 0.00 \\
+2026-03-20 & Pepset Chão & 32 & 2 & 261 & 175450.239435 & \textbf{125295.343326} & \textbf{125295.343110} & \textbf{-28.59} & 21.00 & \textbf{15.00} & 0.269 \\
+2026-03-20 & Pepset Carrossel & 13 & 10 & 190 & 0.571833 & \textbf{0.565763} & \textbf{0.565763} & \textbf{-1.06} & \textbf{0.00} & \textbf{0.00} & 0.008 \\
+2026-03-20 & Cold Box Gasado Pequena & 14 & 1 & 261 & 0.501778 & \textbf{0.342818} & \textbf{0.342818} & \textbf{-31.68} & \textbf{0.00} & \textbf{0.00} & 0.010 \\
+2025-11-28 & Cold Box Soprado Sopradora & 50 & 1 & 190 & 161517.357120 & \textbf{19002.483318} & \textbf{19002.483318} & \textbf{-88.24} & 17.00 & \textbf{2.00} & 2.625 \\
+2025-11-28 & Pepset Carrossel & 12 & 10 & 190 & \textbf{0.272687} & \textbf{0.272687} & \textbf{0.272687} & \textbf{0.00} & \textbf{0.00} & \textbf{0.00} & 0.010 \\
+2026-01-29 & Pepset Carrossel & 21 & 10 & 478 & 609.799283 & \textbf{0.630342} & \textbf{0.630342} & \textbf{-99.90} & \textbf{0.00} & \textbf{0.00} & 0.083 \\
+\bottomrule
+\end{tabular}%
+}
+\end{center}
+}
+\vspace*{\fill}
+\newpage
+\vspace*{\fill}
+{\fontsize{6.5}{7.8}\selectfont
+\setlength{\tabcolsep}{2.5pt}
+\begin{center}
+\rotatebox{90}{%
+\begin{tabular}{@{}llrrrrrrrrrr@{}}
+\toprule
+Data & Setor & $n$ & M & H & Baseline FO & \shortstack{Média\\Heurística FO} & \shortstack{Best\\Heurística FO} & GAP (\%) & \shortstack{Baseline Não\\Alocados} & \shortstack{Heurística\\Não Alocados} & \shortstack{Média Tempo\\Heurística} \\
+\midrule
+2026-01-29 & Cold Box Soprado Sopradora & 30 & 1 & 478 & 423.773726 & \textbf{0.648351} & \textbf{0.648351} & \textbf{-99.85} & \textbf{0.00} & \textbf{0.00} & 0.225 \\
+2026-01-29 & Cold Box Gasado Pequena & 16 & 1 & 549 & 26355.557883 & \textbf{0.467843} & \textbf{0.467843} & \textbf{-100.00} & 3.00 & \textbf{0.00} & 0.020 \\
+2026-05-08 & Pepset Chão & 17 & 2 & 261 & 35504.384633 & \textbf{8876.550023} & \textbf{8876.550023} & \textbf{-75.00} & 8.00 & \textbf{2.00} & 0.061 \\
+2026-05-21 & Pepset Chão & 21 & 2 & 549 & 150816.302082 & \textbf{29.488205} & \textbf{29.488205} & \textbf{-99.98} & 13.00 & \textbf{0.00} & 0.143 \\
+2026-05-21 & Pepset Carrossel & 19 & 10 & 478 & 621.788396 & \textbf{0.615656} & \textbf{0.615656} & \textbf{-99.90} & \textbf{0.00} & \textbf{0.00} & 0.033 \\
+2026-05-21 & Cold Box Soprado Sopradora & 20 & 1 & 478 & 844.784437 & \textbf{0.498483} & \textbf{0.498483} & \textbf{-99.94} & \textbf{0.00} & \textbf{0.00} & 0.055 \\
+2026-05-21 & Cold Box Gasado 4 & 10 & 1 & 549 & 22957.563285 & \textbf{0.596977} & \textbf{0.596977} & \textbf{-100.00} & 4.00 & \textbf{0.00} & 0.003 \\
+2025-12-13 & Cold Box Gasado Pequena & 18 & 1 & 1413 & 0.094948 & \textbf{0.071987} & \textbf{0.071987} & \textbf{-24.18} & \textbf{0.00} & \textbf{0.00} & 0.036 \\
+2025-12-13 & Pepset Carrossel & 18 & 10 & 1342 & 0.039285 & \textbf{0.038705} & \textbf{0.038705} & \textbf{-1.48} & \textbf{0.00} & \textbf{0.00} & 0.044 \\
+2025-12-13 & Cold Box Soprado Sopradora & 36 & 1 & 1342 & 2503.205618 & \textbf{0.130164} & \textbf{0.129448} & \textbf{-99.99} & \textbf{0.00} & \textbf{0.00} & 1.011 \\
+2025-12-14 & Cold Box Gasado Pequena & 18 & 1 & 1413 & 0.094948 & \textbf{0.071987} & \textbf{0.071987} & \textbf{-24.18} & \textbf{0.00} & \textbf{0.00} & 0.035 \\
+2025-12-14 & Pepset Carrossel & 18 & 10 & 1342 & 0.039285 & \textbf{0.038705} & \textbf{0.038705} & \textbf{-1.48} & \textbf{0.00} & \textbf{0.00} & 0.045 \\
+2025-12-14 & Cold Box Soprado Sopradora & 36 & 1 & 1342 & 3090.205618 & \textbf{378.103637} & \textbf{378.103637} & \textbf{-87.76} & \textbf{0.00} & \textbf{0.00} & 1.682 \\
+2026-02-04 & Pepset Carrossel & 26 & 10 & 766 & 0.691470 & \textbf{0.597781} & \textbf{0.597781} & \textbf{-13.55} & \textbf{0.00} & \textbf{0.00} & 0.181 \\
+2026-02-04 & Pepset Chão & 12 & 2 & 837 & 20430.752115 & \textbf{0.548631} & \textbf{0.548631} & \textbf{-100.00} & 2.00 & \textbf{0.00} & 0.014 \\
+2026-02-04 & Cold Box Gasado Pequena & 16 & 1 & 837 & 139.538117 & \textbf{0.381393} & \textbf{0.381393} & \textbf{-99.73} & \textbf{0.00} & \textbf{0.00} & 0.022 \\
+2026-02-04 & Cold Box Soprado Sopradora & 19 & 1 & 766 & 1820.874201 & \textbf{0.455101} & \textbf{0.455101} & \textbf{-99.98} & \textbf{0.00} & \textbf{0.00} & 0.035 \\
+2026-03-27 & Pepset Chão & 22 & 2 & 261 & 57430.410587 & \textbf{40201.445934} & \textbf{40201.445934} & \textbf{-30.00} & 10.00 & \textbf{7.00} & 0.077 \\
+2026-03-27 & Pepset Carrossel & 39 & 10 & 190 & 14822.661989 & \textbf{7411.610471} & \textbf{7411.610444} & \textbf{-50.00} & 2.00 & \textbf{1.00} & 1.415 \\
+2026-03-27 & Cold Box Soprado Sopradora & 12 & 1 & 190 & 0.450680 & \textbf{0.347216} & \textbf{0.347216} & \textbf{-22.96} & \textbf{0.00} & \textbf{0.00} & 0.005 \\
+2025-12-12 & Cold Box Gasado Pequena & 19 & 1 & 261 & 0.617540 & \textbf{0.414919} & \textbf{0.414919} & \textbf{-32.81} & \textbf{0.00} & \textbf{0.00} & 0.043 \\
+2025-12-12 & Pepset Carrossel & 20 & 10 & 190 & 0.282031 & \textbf{0.276506} & \textbf{0.276506} & \textbf{-1.96} & \textbf{0.00} & \textbf{0.00} & 0.071 \\
+2025-12-12 & Cold Box Soprado Sopradora & 36 & 1 & 190 & 116297.286508 & \textbf{27364.468060} & \textbf{27364.468060} & \textbf{-76.47} & 17.00 & \textbf{4.00} & 0.585 \\
+2025-11-14 & Cold Box Gasado Pequena & 11 & 1 & 261 & 0.503482 & \textbf{0.299791} & \textbf{0.299791} & \textbf{-40.46} & \textbf{0.00} & \textbf{0.00} & 0.005 \\
+2025-11-14 & Pepset Chão & 15 & 2 & 261 & 19580.447906 & \textbf{0.741062} & \textbf{0.741062} & \textbf{-100.00} & 5.00 & \textbf{0.00} & 0.035 \\
+2025-11-14 & Pepset Carrossel & 27 & 10 & 190 & \textbf{0.278503} & \textbf{0.278503} & \textbf{0.278503} & \textbf{0.00} & \textbf{0.00} & \textbf{0.00} & 0.192 \\
+2025-11-14 & Cold Box Soprado Sopradora & 23 & 1 & 190 & 0.416838 & \textbf{0.404255} & \textbf{0.404255} & \textbf{-3.02} & \textbf{0.00} & \textbf{0.00} & 0.054 \\
+2026-06-25 & Pepset Chão & 23 & 2 & 549 & 178107.332357 & \textbf{25334.484875} & \textbf{25334.484875} & \textbf{-85.78} & 14.00 & \textbf{2.00} & 0.203 \\
+2026-06-25 & Pepset Carrossel & 35 & 10 & 478 & 299.425856 & \textbf{0.358795} & \textbf{0.358795} & \textbf{-99.88} & \textbf{0.00} & \textbf{0.00} & 0.611 \\
+2026-06-25 & Cold Box Soprado Sopradora & 20 & 1 & 478 & 492.742600 & \textbf{0.518147} & \textbf{0.518147} & \textbf{-99.89} & \textbf{0.00} & \textbf{0.00} & 0.046 \\
+2026-01-10 & Pepset Chão & 11 & 2 & 1413 & 20.901248 & \textbf{0.828809} & \textbf{0.828809} & \textbf{-96.03} & \textbf{0.00} & \textbf{0.00} & 0.010 \\
+2026-01-10 & Pepset Carrossel & 25 & 10 & 1342 & 0.814074 & \textbf{0.777890} & \textbf{0.777890} & \textbf{-4.44} & \textbf{0.00} & \textbf{0.00} & 0.120 \\
+\bottomrule
+\end{tabular}%
+}
+\end{center}
+}
+\vspace*{\fill}
+\newpage
+\vspace*{\fill}
+{\fontsize{6.5}{7.8}\selectfont
+\setlength{\tabcolsep}{2.5pt}
+\begin{center}
+\refstepcounter{table}\label{tab:baseline_vs_heuristic_gt50}%
+\rotatebox{90}{%
+\begin{tabular}{@{}llrrrrrrrrrr@{}}
+\multicolumn{12}{c}{\normalsize Tabela \thetable{} -- Comparativo entre o Baseline e a meta-heurística -- instâncias com $n > 50$} \\[1.2ex]
+\toprule
+Data & Setor & $n$ & M & H & Baseline FO & \shortstack{Média\\Heurística FO} & \shortstack{Best\\Heurística FO} & GAP (\%) & \shortstack{Baseline Não\\Alocados} & \shortstack{Heurística\\Não Alocados} & \shortstack{Média Tempo\\Heurística} \\
+\midrule
+2026-05-08 & Pepset Carrossel & 51 & 10 & 190 & 87219.607161 & \textbf{9691.680632} & \textbf{9691.680632} & \textbf{-88.89} & 9.00 & \textbf{1.00} & 3.687 \\
+2025-10-04 & Pepset Carrossel & 65 & 10 & 1342 & 1416.876764 & \textbf{0.673132} & \textbf{0.673132} & \textbf{-99.95} & \textbf{0.00} & \textbf{0.00} & 9.830 \\
+2026-06-01 & Pepset Carrossel & 56 & 10 & 1342 & 2749.479475 & \textbf{0.384788} & \textbf{0.384788} & \textbf{-99.99} & \textbf{0.00} & \textbf{0.00} & 6.163 \\
+2025-10-24 & Pepset Carrossel & 65 & 10 & 190 & 0.324508 & \textbf{0.304186} & \textbf{0.304186} & \textbf{-6.26} & \textbf{0.00} & \textbf{0.00} & 9.692 \\
+2025-09-25 & Cold Box Soprado Sopradora & 68 & 1 & 478 & 817766.523981 & \textbf{1631.374189} & \textbf{1631.374189} & \textbf{-99.80} & 25.00 & \textbf{0.00} & 13.768 \\
+2026-06-10 & Pepset Carrossel & 74 & 10 & 766 & 914554.679104 & \textbf{0.570839} & \textbf{0.570839} & \textbf{-100.00} & 16.00 & \textbf{0.00} & 23.788 \\
+2025-10-10 & Pepset Carrossel & 60 & 10 & 190 & 0.313920 & \textbf{0.296991} & \textbf{0.296991} & \textbf{-5.39} & \textbf{0.00} & \textbf{0.00} & 6.994 \\
+2025-11-27 & Cold Box Soprado Sopradora & 74 & 1 & 478 & 1028353.438724 & \textbf{0.395528} & \textbf{0.395528} & \textbf{-100.00} & 29.00 & \textbf{0.00} & 33.437 \\
+2026-05-20 & Pepset Carrossel & 62 & 10 & 766 & 5631.886489 & \textbf{0.628745} & \textbf{0.628745} & \textbf{-99.99} & \textbf{0.00} & \textbf{0.00} & 10.356 \\
+2026-05-07 & Pepset Carrossel & 90 & 10 & 478 & 1380122.519676 & \textbf{0.588805} & \textbf{0.588805} & \textbf{-100.00} & 32.00 & \textbf{0.00} & 44.165 \\
+2026-01-14 & Cold Box Soprado Sopradora & 68 & 1 & 766 & 1980833.391042 & \textbf{0.567836} & \textbf{0.567836} & \textbf{-100.00} & 38.00 & \textbf{0.00} & 12.578 \\
+2026-02-19 & Pepset Carrossel & 74 & 10 & 478 & 885341.514686 & \textbf{0.530207} & \textbf{0.530207} & \textbf{-100.00} & 25.00 & \textbf{0.00} & 23.586 \\
+2026-03-25 & Pepset Carrossel & 59 & 10 & 766 & 95753.677619 & \textbf{0.515654} & \textbf{0.515654} & \textbf{-100.00} & 2.00 & \textbf{0.00} & 6.157 \\
+2026-01-16 & Cold Box Soprado Sopradora & 52 & 1 & 190 & 108691.453598 & \textbf{9881.494788} & \textbf{9881.494788} & \textbf{-90.91} & 11.00 & \textbf{1.00} & 4.970 \\
+2025-12-04 & Pepset Carrossel & 53 & 10 & 478 & 71.606315 & \textbf{0.447563} & \textbf{0.447563} & \textbf{-99.37} & \textbf{0.00} & \textbf{0.00} & 4.465 \\
+2025-12-05 & Cold Box Gasado Pequena & 56 & 1 & 261 & 526212.197373 & \textbf{409276.263597} & \textbf{409276.263597} & \textbf{-22.22} & 36.00 & \textbf{28.00} & 5.358 \\
+2026-02-02 & Pepset Carrossel & 51 & 10 & 1342 & 63.606680 & \textbf{0.542451} & \textbf{0.542451} & \textbf{-99.15} & \textbf{0.00} & \textbf{0.00} & 4.587 \\
+2025-12-11 & Cold Box Soprado Sopradora & 64 & 1 & 478 & 918597.249403 & \textbf{61640.370987} & \textbf{61622.469356} & \textbf{-93.29} & 30.00 & \textbf{2.00} & 33.701 \\
+2025-10-05 & Cold Box Soprado Sopradora & 61 & 1 & 1342 & 10989.610007 & \textbf{0.237555} & \textbf{0.237555} & \textbf{-100.00} & \textbf{0.00} & \textbf{0.00} & 5.493 \\
+2026-02-14 & Pepset Chão & 51 & 2 & 1413 & 2455365.282443 & \textbf{432592.448302} & \textbf{432592.448296} & \textbf{-82.38} & 34.00 & \textbf{6.00} & 4.785 \\
+2026-02-15 & Pepset Chão & 51 & 2 & 1413 & 2600297.242215 & \textbf{208.448277} & \textbf{208.448088} & \textbf{-99.99} & 36.00 & \textbf{0.00} & 8.746 \\
+2026-03-23 & Pepset Chão & 52 & 2 & 1413 & 531278.481144 & \textbf{77077.703504} & \textbf{77066.402371} & \textbf{-85.49} & 7.00 & \textbf{1.00} & 11.206 \\
+2025-10-28 & Cold Box Soprado Sopradora & 51 & 1 & 1054 & 65132.781527 & \textbf{0.329774} & \textbf{0.329774} & \textbf{-100.00} & 1.00 & \textbf{0.00} & 2.503 \\
+2025-11-29 & Cold Box Soprado Sopradora & 80 & 1 & 1342 & 1084892.520515 & \textbf{0.273367} & \textbf{0.273367} & \textbf{-100.00} & 10.00 & \textbf{0.00} & 21.877 \\
+2025-11-30 & Cold Box Soprado Sopradora & 80 & 1 & 1342 & 8781.467665 & \textbf{0.199057} & \textbf{0.199057} & \textbf{-100.00} & \textbf{0.00} & \textbf{0.00} & 25.293 \\
+2026-01-13 & Cold Box Soprado Sopradora & 80 & 1 & 1054 & 3713346.413088 & \textbf{0.598546} & \textbf{0.598546} & \textbf{-100.00} & 44.00 & \textbf{0.00} & 17.543 \\
+2026-01-27 & Pepset Carrossel & 55 & 10 & 1054 & 1906.828914 & \textbf{0.624278} & \textbf{0.624278} & \textbf{-99.97} & \textbf{0.00} & \textbf{0.00} & 3.840 \\
+2026-01-27 & Cold Box Soprado Sopradora & 59 & 1 & 1054 & 995339.640664 & \textbf{0.664415} & \textbf{0.664415} & \textbf{-100.00} & 16.00 & \textbf{0.00} & 4.471 \\
+2025-11-26 & Cold Box Soprado Sopradora & 95 & 1 & 766 & 3062015.404103 & \textbf{0.434253} & \textbf{0.434253} & \textbf{-100.00} & 42.00 & \textbf{0.00} & 125.146 \\
+\bottomrule
+\end{tabular}%
+}
+\end{center}
+}
+\vspace*{\fill}
