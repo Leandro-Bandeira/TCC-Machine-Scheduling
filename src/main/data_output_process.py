@@ -240,6 +240,12 @@ def parse_args() -> argparse.Namespace:
         help="Diretório raiz das saídas processadas (default: data/trusted).",
     )
     parser.add_argument(
+        "--latest-root",
+        type=Path,
+        default=default_root / "data" / "latest",
+        help="Diretório raiz dos resultados consolidados mais recentes (default: data/latest).",
+    )
+    parser.add_argument(
         "--only-status",
         nargs="+",
         default=None,
@@ -258,6 +264,7 @@ def main() -> None:
 
     date_slug = dt_obj.strftime("%d%m%Y")
     trusted_root: Path = args.trusted_root
+    latest_root: Path = args.latest_root
     date_dir = trusted_root / date_slug
 
     ensure_exists(date_dir, kind="dir")
@@ -286,7 +293,7 @@ def main() -> None:
     for status_label, status_dir in status_to_process:
         output_dir = trusted_root / date_slug / status_label
         logger.info("Processando status=%s | dir=%s", status_label, output_dir)
-        JobSchedulingOutput().run(output_dir, latest_dir=LATEST_DIR / status_label)
+        JobSchedulingOutput().run(output_dir, latest_dir=latest_root / status_label)
         logger.info("Concluído: status=%s", status_label)
 
 
