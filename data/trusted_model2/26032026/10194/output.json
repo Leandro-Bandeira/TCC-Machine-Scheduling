@@ -1,0 +1,303 @@
+{
+  "machines_scheduling": [
+    {
+      "machine_id": 1,
+      "objective_function": 0.4930485944650251,
+      "warm_start_value": 0.493048594465025,
+      "mip_gap": 8.8e-05,
+      "count_jobs_not_allocated": 0.0,
+      "solve_time_seconds": 3613.143,
+      "termination_condition": "optimal",
+      "jobs": [
+        {
+          "job_id": 2,
+          "start": 48,
+          "end": 83,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 3,
+          "start": 70,
+          "end": 105,
+          "sub_machine": 9
+        },
+        {
+          "job_id": 4,
+          "start": 55,
+          "end": 90,
+          "sub_machine": 7
+        },
+        {
+          "job_id": 10,
+          "start": 48,
+          "end": 68,
+          "sub_machine": 9
+        },
+        {
+          "job_id": 11,
+          "start": 48,
+          "end": 68,
+          "sub_machine": 5
+        },
+        {
+          "job_id": 13,
+          "start": 336,
+          "end": 356,
+          "sub_machine": 1
+        },
+        {
+          "job_id": 14,
+          "start": 336,
+          "end": 356,
+          "sub_machine": 9
+        },
+        {
+          "job_id": 23,
+          "start": 88,
+          "end": 182,
+          "sub_machine": 3
+        },
+        {
+          "job_id": 26,
+          "start": 85,
+          "end": 126,
+          "sub_machine": 8
+        },
+        {
+          "job_id": 30,
+          "start": 48,
+          "end": 53,
+          "sub_machine": 7
+        },
+        {
+          "job_id": 42,
+          "start": 107,
+          "end": 183,
+          "sub_machine": 9
+        },
+        {
+          "job_id": 44,
+          "start": 373,
+          "end": 431,
+          "sub_machine": 8
+        },
+        {
+          "job_id": 45,
+          "start": 373,
+          "end": 449,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 61,
+          "start": 94,
+          "end": 152,
+          "sub_machine": 1
+        },
+        {
+          "job_id": 74,
+          "start": 373,
+          "end": 467,
+          "sub_machine": 7
+        },
+        {
+          "job_id": 77,
+          "start": 107,
+          "end": 177,
+          "sub_machine": 5
+        },
+        {
+          "job_id": 79,
+          "start": 373,
+          "end": 408,
+          "sub_machine": 2
+        },
+        {
+          "job_id": 80,
+          "start": 336,
+          "end": 371,
+          "sub_machine": 2
+        },
+        {
+          "job_id": 81,
+          "start": 336,
+          "end": 371,
+          "sub_machine": 7
+        },
+        {
+          "job_id": 82,
+          "start": 373,
+          "end": 408,
+          "sub_machine": 5
+        },
+        {
+          "job_id": 83,
+          "start": 336,
+          "end": 371,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 84,
+          "start": 48,
+          "end": 50,
+          "sub_machine": 3
+        },
+        {
+          "job_id": 85,
+          "start": 84,
+          "end": 119,
+          "sub_machine": 2
+        },
+        {
+          "job_id": 86,
+          "start": 48,
+          "end": 59,
+          "sub_machine": 6
+        },
+        {
+          "job_id": 87,
+          "start": 48,
+          "end": 83,
+          "sub_machine": 4
+        },
+        {
+          "job_id": 88,
+          "start": 48,
+          "end": 56,
+          "sub_machine": 1
+        },
+        {
+          "job_id": 89,
+          "start": 51,
+          "end": 86,
+          "sub_machine": 3
+        },
+        {
+          "job_id": 90,
+          "start": 48,
+          "end": 83,
+          "sub_machine": 2
+        },
+        {
+          "job_id": 91,
+          "start": 60,
+          "end": 95,
+          "sub_machine": 6
+        },
+        {
+          "job_id": 92,
+          "start": 84,
+          "end": 119,
+          "sub_machine": 4
+        },
+        {
+          "job_id": 93,
+          "start": 97,
+          "end": 132,
+          "sub_machine": 6
+        },
+        {
+          "job_id": 94,
+          "start": 70,
+          "end": 105,
+          "sub_machine": 5
+        },
+        {
+          "job_id": 95,
+          "start": 57,
+          "end": 92,
+          "sub_machine": 1
+        },
+        {
+          "job_id": 96,
+          "start": 336,
+          "end": 371,
+          "sub_machine": 6
+        },
+        {
+          "job_id": 97,
+          "start": 336,
+          "end": 371,
+          "sub_machine": 4
+        },
+        {
+          "job_id": 98,
+          "start": 358,
+          "end": 393,
+          "sub_machine": 1
+        },
+        {
+          "job_id": 99,
+          "start": 336,
+          "end": 371,
+          "sub_machine": 3
+        },
+        {
+          "job_id": 100,
+          "start": 336,
+          "end": 371,
+          "sub_machine": 5
+        },
+        {
+          "job_id": 101,
+          "start": 336,
+          "end": 371,
+          "sub_machine": 8
+        },
+        {
+          "job_id": 102,
+          "start": 358,
+          "end": 393,
+          "sub_machine": 9
+        },
+        {
+          "job_id": 198,
+          "start": 373,
+          "end": 431,
+          "sub_machine": 6
+        },
+        {
+          "job_id": 199,
+          "start": 395,
+          "end": 453,
+          "sub_machine": 1
+        },
+        {
+          "job_id": 200,
+          "start": 373,
+          "end": 431,
+          "sub_machine": 4
+        },
+        {
+          "job_id": 201,
+          "start": 373,
+          "end": 431,
+          "sub_machine": 3
+        },
+        {
+          "job_id": 202,
+          "start": 121,
+          "end": 179,
+          "sub_machine": 4
+        },
+        {
+          "job_id": 203,
+          "start": 92,
+          "end": 136,
+          "sub_machine": 7
+        },
+        {
+          "job_id": 204,
+          "start": 85,
+          "end": 126,
+          "sub_machine": 0
+        },
+        {
+          "job_id": 205,
+          "start": 48,
+          "end": 83,
+          "sub_machine": 8
+        }
+      ]
+    }
+  ]
+}
