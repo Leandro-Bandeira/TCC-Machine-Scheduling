@@ -292,17 +292,20 @@ class TimeIndex:
         #     f"  [Warm Start] Inicializando modelo Pyomo com {len(heuristic_jobs)} jobs da heurística..."
         # )
 
-        # Inicializa todos os y como 1 (não alocado) e C como 0 por padrão
+        # Inicializa todos os y como 1 (não alocado) e C/Tardiness como 0 por padrão
+        has_tardiness = hasattr(model, "Tardiness")
         for job in jobs_data:
             model.y[job.id].value = 1.0
             model.C[job.id].value = 0.0
+            if has_tardiness:
+                model.Tardiness[job.id].value = 0.0
 
         # Zerar todas as variáveis x
         for idx in model.indexes:
             model.x[idx].value = 0.0
 
         warm_count = 0
-        proc_by_id = {job.id: job.processing_slots for job in jobs_data}
+        job_by_id = {job.id: job for job in jobs_data}
 
         for hj in heuristic_jobs:
             job_id = hj.get("job_id")
@@ -313,8 +316,14 @@ class TimeIndex:
                 if (job_id, start, m) in model.indexes:
                     model.x[job_id, start, m].value = 1.0
                     model.y[job_id].value = 0.0
-                    proc = proc_by_id.get(job_id, 0)
-                    model.C[job_id].value = start + proc
+                    job_obj = job_by_id.get(job_id)
+                    proc = job_obj.processing_slots if job_obj else 0
+                    comp = start + proc
+                    model.C[job_id].value = comp
+                    if has_tardiness and job_obj is not None:
+                        model.Tardiness[job_id].value = max(
+                            0.0, float(comp - job_obj.due_date_slot)
+                        )
                     warm_count += 1
 
         # print(
@@ -464,7 +473,7 @@ class TimeIndex:
     def _solve_with_gurobi(self, model, warmstart: bool = False):
         solver = pyo.SolverFactory("gurobi")
         solver.options["TimeLimit"] = 3600
-        solver.options["MemLimit"] = 40.0
+        solver.options["SoftMemLimit"] = 40.0
         _t0 = perf_counter()
         try:
             result = solver.solve(
@@ -493,6 +502,22 @@ class TimeIndex:
                     self.mip_gap = round(abs(upper - lower) / abs(upper), 6)
                 else:
                     self.mip_gap = None
+            elif warmstart and self.warm_start_value is not None:
+                # Se atingiu limite de memória antes de concluir o root LP / MIP start,
+                # preserva a solução inicial do warm start carregada nas variáveis do modelo
+                self.objective_value = self._read_objective(model)
+                if (
+                    self.objective_value is not None
+                    and self.objective_value != 0
+                    and lower is not None
+                    and abs(lower) < 1e99
+                ):
+                    self.mip_gap = round(
+                        abs(self.objective_value - lower) / abs(self.objective_value),
+                        6,
+                    )
+                else:
+                    self.mip_gap = None
             else:
                 self.objective_value = None
                 self.mip_gap = None
@@ -500,7 +525,10 @@ class TimeIndex:
             self.solve_time = perf_counter() - _t0
             print(f"[AVISO] Gurobi interrompido com exceção: {exc}")
             self.termination_condition = "mem_limit"
-            self.objective_value = None
+            if warmstart and self.warm_start_value is not None:
+                self.objective_value = self._read_objective(model)
+            else:
+                self.objective_value = None
             self.mip_gap = None
 
     def _read_objective(self, model):
