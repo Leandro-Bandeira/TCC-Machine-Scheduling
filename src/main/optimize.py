@@ -398,7 +398,7 @@ class TimeIndex:
 
         # t0 = perf_counter()
         # model.machine_capacity = pyo.Constraint(
-        #     capacity_indexes, rule=self._machine_capacity_rule
+            #capacity_indexes, rule=self._machine_capacity_rule
         # )
         # print(f"[machine_capacity] {perf_counter() - t0:.3f}s")
 
